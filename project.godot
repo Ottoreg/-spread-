@@ -1,0 +1,26 @@
+; Engine configuration file for the -spread- feasibility prototype.
+; Godot 4.x, C# / .NET. Generated for the topdown mass-entity benchmark.
+
+config_version=5
+
+[application]
+
+config/name="-spread-"
+config/description="Prototype-benchmark: simulation topdown d'un grand nombre d'entites."
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.3", "C#", "GL Compatibility")
+
+[dotnet]
+
+project/assembly_name="Spread"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
