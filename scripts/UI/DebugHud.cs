@@ -2,9 +2,9 @@ using Godot;
 using System;
 
 /// <summary>
-/// Overlay de debug/benchmark : FPS, population, temps de chaque système (ms),
-/// et contrôles (population, LOD, cap FPS). Construit entièrement en code pour
-/// éviter toute édition fragile de scène.
+/// Overlay de debug/benchmark : FPS, populations (total/activés/visibles),
+/// projectiles, kills, PV du joueur, temps de chaque système (ms), et contrôles.
+/// Construit entièrement en code pour éviter toute édition fragile de scène.
 /// </summary>
 public partial class DebugHud : Control
 {
@@ -15,8 +15,10 @@ public partial class DebugHud : Control
 
     public override void _Ready()
     {
-        var panel = new PanelContainer();
-        panel.Position = new Vector2(8, 8);
+        MouseFilter = MouseFilterEnum.Ignore; // ne bloque pas la visée/tir
+
+        var panel = new PanelContainer { Position = new Vector2(8, 8) };
+        panel.MouseFilter = MouseFilterEnum.Ignore;
         AddChild(panel);
 
         var vb = new VBoxContainer();
@@ -51,12 +53,13 @@ public partial class DebugHud : Control
         if (_label == null || Game == null) return;
 
         _label.Text =
-            $"FPS: {Engine.GetFramesPerSecond()}\n" +
-            $"Entites: {Game.EntityCount}   Visibles: {Game.VisibleCount}\n" +
-            $"grid {Game.MsGrid:0.00}  fsm {Game.MsFsm:0.00}  flock {Game.MsFlock:0.00}  " +
-            $"integ {Game.MsIntegrate:0.00}  coll {Game.MsCollision:0.00}  render {Game.MsRender:0.00}  (ms)\n" +
+            $"FPS: {Engine.GetFramesPerSecond()}    PV: {Game.PlayerHealth:0}\n" +
+            $"Anticorps: {Game.EntityCount}   Actives: {Game.ActivatedCount}   Visibles: {Game.VisibleCount}\n" +
+            $"Projectiles: {Game.ProjectileCount}   Kills: {Game.TotalKills}\n" +
+            $"grid {Game.MsGrid:0.00}  ia {Game.MsBehavior:0.00}  integ {Game.MsIntegrate:0.00}  " +
+            $"coll {Game.MsCollision:0.00}  proj {Game.MsProjectiles:0.00}  rendu {Game.MsRender:0.00}  (ms)\n" +
             $"LOD: {(Game.LodEnabled ? "ON" : "off")}    FPS cap: {(Game.FpsCapped ? "60" : "off")}\n" +
-            $"WASD/fleches: deplacer   Molette: zoom   Clic gauche: definir la cible";
+            $"WASD: bouger   Souris: viser   Clic gauche: tirer   Molette: zoom   R: reset";
 
         _slider.SetValueNoSignal(Game.EntityCount);
     }

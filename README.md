@@ -1,20 +1,22 @@
 # -spread-
 
-Prototype-benchmark de faisabilité : simulation **topdown** d'un **très grand nombre d'entités**
-(flocking + pathfinding + machine à états + collisions), en **Godot 4 / C#**, multiplateforme **PC + mobile**.
+Prototype d'un **twin-stick roguelike** dans le corps d'un hôte : le joueur incarne un
+**virus** ; des **milliers d'anticorps** errent puis s'activent pour l'attaquer en nuée.
+Rendu **fil-de-fer**. Moteur : **Godot 4 / C#**. Cible : **PC d'abord** (mobile plus tard).
 
-> Étude de faisabilité pour un futur projet de jeu vidéo. Objectif : mesurer des chiffres réels
-> (FPS, ms/système, N max) sur PC et mobile, et valider l'architecture data-oriented.
+> Sert aussi de benchmark de faisabilité : mesurer des chiffres réels
+> (FPS, ms/système, N max) et valider l'architecture data-oriented.
 
 ## Ce qui est inclus
 
-- Architecture **data-oriented** : les entités sont des tableaux plats (SoA), **pas des Nodes**.
-- **Grille de hachage spatiale** pour le voisinage en O(n·k) (flocking, collisions).
-- **Flow field** : un seul champ de direction partagé pour le pathfinding de masse.
-- **Flocking** (séparation / alignement / cohésion) + **FSM** + **collisions**.
-- **Rendu** en un seul `MultiMeshInstance2D` (quelques draw calls pour des dizaines de milliers de sprites).
-- **LOD de simulation** activable (les entités lointaines coûtent moins cher).
-- **HUD de profiling** : FPS, population, temps de chaque système, contrôles.
+- Architecture **data-oriented** : les anticorps sont des tableaux plats (SoA), **pas des Nodes**.
+- **Grille de hachage spatiale** pour le voisinage en O(n·k) (nuée, collisions, impacts).
+- **Flow field** re-ciblé sur le joueur : pathfinding de masse pour des milliers de poursuivants.
+- **Anticorps** dormants (errance) → **activés** (nuée + poursuite) selon un rayon d'activation.
+- **Joueur** twin-stick (déplacement, visée, tir) + **projectiles** d'infection (pool SoA).
+- **Rendu fil-de-fer** en `MultiMeshInstance2D` (quelques draw calls pour des dizaines de milliers de formes).
+- **LOD de simulation** activable (anticorps dormants lointains moins coûteux).
+- **HUD de profiling** : FPS, populations, temps de chaque système, contrôles.
 
 Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour les détails de conception, les budgets et les limites.
 
@@ -33,10 +35,12 @@ Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour les détails de concept
 
 | Action | Entrée |
 |--------|--------|
-| Déplacer la caméra | `WASD` ou flèches |
+| Déplacer le virus | `WASD` ou flèches |
+| Viser | Souris |
+| Tirer (infecter) | Clic gauche maintenu |
 | Zoom | Molette souris |
-| Définir la cible (flow field) | Clic gauche dans le monde |
-| Ajuster la population | Boutons / slider du HUD |
+| Réinitialiser (PV + désactiver) | `R` |
+| Ajuster la population d'anticorps | Boutons / slider du HUD |
 | Activer le LOD de simulation | Bouton `LOD` |
 | Plafonner à 60 FPS | Bouton `Cap FPS` |
 
@@ -46,13 +50,11 @@ Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour les détails de concept
 2. Monter la population par paliers (slider / `+5000`) jusqu'à ce que le FPS chute sous 60, puis sous 30.
 3. Comparer **LOD off** vs **LOD on** à population élevée.
 4. Repérer le système le plus coûteux (colonne `ms` du HUD).
-5. **Exporter sur mobile** (Android/iOS) et refaire les mesures — le mobile est le vrai plafond.
+5. Faire varier le **rayon d'activation** (`Config.ActivationRadius`) pour voir le coût des anticorps *activés* (les plus chers) vs *dormants*.
 
-## Export mobile (résumé)
-
-- **Android** : installer le *Android Build Template* + SDK, créer un preset Android, export APK.
-- **iOS** : nécessite macOS + Xcode, preset iOS.
-- Garder `gl_compatibility` (déjà configuré) pour la meilleure compatibilité GPU mobile.
+> Le portage/tests **mobile sont mis de côté** pour l'instant. Le code reste
+> portable (`gl_compatibility`, data-oriented) : on pourra exporter Android/iOS
+> plus tard sans refonte.
 
 ## Réglages
 

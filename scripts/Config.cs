@@ -1,40 +1,58 @@
 using Godot;
 
 /// <summary>
-/// Paramètres globaux réglables du prototype-benchmark.
-/// Toutes les valeurs sont ici pour faciliter le tuning pendant les mesures.
+/// Paramètres globaux réglables du prototype-benchmark / slice de gameplay.
+/// Concept : twin-stick roguelike. Le joueur (virus) infecte l'hôte ; des
+/// milliers d'anticorps errent (dormants) puis s'activent pour l'attaquer.
+/// Tout est ici pour faciliter le tuning pendant les mesures.
 /// </summary>
 public static class Config
 {
-    // --- Capacité & population de départ ---
-    // Taille max des tableaux (mémoire pré-allouée, jamais réallouée en cours de run).
-    public const int Capacity = 60000;
-    public const int InitialEntityCount = 2000;
+    // --- Capacité & population ---
+    public const int Capacity = 60000;          // mémoire pré-allouée (jamais réallouée)
+    public const int InitialEntityCount = 3000;
 
-    // --- Monde ---
+    // --- Monde (grande map ouverte = organes interconnectés, à venir) ---
     public const float WorldWidth = 6000f;
     public const float WorldHeight = 6000f;
 
-    // --- Cinématique ---
-    public const float MaxSpeed = 120f;   // px/s
-    public const float MaxForce = 400f;   // px/s^2 (cap de la force de pilotage)
+    // --- Anticorps : cinématique ---
+    public const float MaxSpeed = 130f;         // vitesse max quand activé
+    public const float DormantSpeed = 45f;      // vitesse de dérive quand dormant
+    public const float MaxForce = 420f;
 
-    // --- Flocking (boids) ---
+    // --- Flocking / nuée (anticorps activés) ---
     public const float PerceptionRadius = 40f;
-    public const float SeparationRadius = 18f;
-    public const float SeparationWeight = 1.8f;
-    public const float AlignmentWeight = 1.0f;
-    public const float CohesionWeight = 0.9f;
-    public const float FlowWeight = 1.4f;   // poids du pathfinding (flow field)
+    public const float SeparationRadius = 16f;
+    public const float SeparationWeight = 1.9f;
+    public const float AlignmentWeight = 0.8f;
+    public const float CohesionWeight = 0.6f;
+    public const float SeekWeight = 1.6f;       // poursuite du joueur (via flow field)
+    public const float WanderWeight = 1.0f;     // errance quand dormant
 
-    // --- Collisions ---
+    // --- Activation ---
+    // Un anticorps dormant à moins de ce rayon du joueur se réveille et attaque.
+    public const float ActivationRadius = 340f;
+
+    // --- Collisions / tailles ---
     public const float EntityRadius = 5f;
 
-    // --- Grille spatiale : cellule = rayon de perception (voisinage 3x3 suffit) ---
+    // --- Joueur (virus) ---
+    public const float PlayerSpeed = 250f;
+    public const float PlayerRadius = 11f;
+    public const float PlayerMaxHealth = 100f;
+    public const float PlayerContactDps = 14f;  // dégâts/s au contact d'un anticorps activé
+
+    // --- Projectiles (infection) ---
+    public const int ProjectileCapacity = 4000;
+    public const float ProjectileSpeed = 720f;
+    public const float ProjectileLifetime = 1.1f;
+    public const float ProjectileRadius = 6f;
+    public const float FireInterval = 0.085f;   // cadence de tir (s)
+
+    // --- Grille spatiale : cellule = rayon de perception ---
     public const float CellSize = 40f;
 
-    // --- LOD de simulation ---
-    // Hors zone active, une entité ne recalcule son flocking complet que
-    // 1 tick sur LodStride (elle suit le flow field le reste du temps).
+    // --- LOD de simulation (anticorps dormants lointains) ---
     public const int LodStride = 6;
 }

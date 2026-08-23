@@ -1,7 +1,20 @@
 # -spread- — Architecture technique (étude de faisabilité)
 
-> Prototype-benchmark : simulation topdown d'un grand nombre d'entités.
-> Moteur : **Godot 4.x en C# (.NET)**. Cible : **PC + mobile**, solo (multi plus tard).
+> Prototype-benchmark : **twin-stick roguelike** dans le corps d'un hôte.
+> Le joueur incarne un **virus** ; des milliers d'**anticorps** errent puis
+> s'activent pour l'attaquer. Rendu **fil-de-fer** (formes géométriques).
+> Moteur : **Godot 4.x en C# (.NET)**. Cible : **PC d'abord** (mobile plus tard),
+> solo (multi plus tard).
+
+## Concept
+
+- **Joueur = virus** : contrôle twin-stick (déplacement clavier, visée souris,
+  tir maintenu). Doit infecter l'hôte ; les projectiles détruisent les anticorps.
+- **Anticorps = les milliers d'entités** : à l'état **dormant** ils errent dans
+  la map ; quand le joueur s'approche (rayon d'activation) ils passent **activés**
+  et le poursuivent en nuée.
+- **Map** : grande zone ouverte continue = organes interconnectés de l'hôte
+  (obstacles/murs d'organes à venir ; le flow field les gère déjà par conception).
 
 ---
 
@@ -46,16 +59,20 @@ Avantages : mémoire contiguë (cache-friendly), aucune surcharge de l'arbre de 
 Ordre d'exécution à chaque pas de simulation (timestep fixe) :
 
 ```
-_PhysicsProcess(delta)
-  1. InputSystem        → caméra (pan/zoom), réglage de N
-  2. SpatialGrid.Rebuild→ réindexe les entités dans la grille
-  3. StateMachineSystem → transitions d'états (idle/seek/flee/...)
-  4. PathfindingSystem  → lit le flow field, calcule la direction désirée
-  5. FlockingSystem     → séparation + alignement + cohésion (via grille)
-  6. Integrate          → applique vitesse, limites, met à jour Position
-  7. CollisionSystem    → résout les chevauchements (via grille)
-  8. EntityRenderer     → pousse les transforms visibles dans le MultiMesh
-  9. DebugHud           → FPS, ms, compteur
+_PhysicsProcess(delta)  — timestep fixe
+  1. Player.Tick        → déplacement, visée, tir (spawn projectiles)
+  2. FlowField retarget → re-cible le champ sur le joueur (amorti /8 ticks)
+  3. SpatialGrid.Rebuild→ réindexe les entités dans la grille
+  4. AntibodySystem     → activation + errance (dormant) / nuée+poursuite (activé)
+  5. Integrate          → applique vitesse (cap selon état), bornes, Position
+  6. CollisionSystem    → résout les chevauchements (via grille)
+  7. ProjectileSystem   → déplace les tirs, résout impacts (via grille), kills
+  8. Simulation.Compact → retire les anticorps détruits (compaction dense)
+  9. ContactDamage      → anticorps activés touchant le joueur → dégâts
+
+_Process(delta)
+  • EntityRenderer / ProjectileRenderer → MultiMesh (fil-de-fer) + culling
+  • DebugHud → FPS, populations, ms par système
 ```
 
 Chaque système est une classe séparée opérant sur les tableaux SoA. Aucun système n'alloue par entité et par frame.
@@ -86,17 +103,32 @@ Trois règles classiques, calculées sur les voisins de la grille :
 - **Cohésion** : se rapprocher du centre de masse des voisins.
 Pondérées, plafonnées par une force max et une vitesse max.
 
-### 5.2 Pathfinding : flow field (champ de direction)
-Pour faire naviguer **des milliers** d'entités vers une cible commune, on **ne fait PAS un A\* par entité**. On calcule **un seul flow field** partagé :
+Dans le jeu : **dormant** = errance seule (+ séparation) ; **activé** = les trois
+règles de nuée + poursuite du joueur via le flow field.
+
+### 5.2 Pathfinding : flow field (champ de direction) vers le joueur
+Pour faire poursuivre **des milliers** d'anticorps vers le joueur, on **ne fait
+PAS un A\* par entité**. On calcule **un seul flow field** partagé, re-ciblé sur
+le joueur :
 - Une grille de navigation (indépendante de la grille spatiale, plus grossière).
-- Un BFS/Dijkstra depuis la cible produit un champ « coût », puis un champ « direction » (vecteur par cellule pointant vers la cible en contournant les obstacles).
-- Chaque entité lit simplement le vecteur de sa cellule → **O(1) par entité**.
-- Recalculé seulement quand la cible ou les obstacles changent.
+- Un BFS depuis la cellule du joueur produit un champ « coût », puis un champ
+  « direction » (vecteur par cellule pointant vers le joueur, contournant les
+  futurs obstacles/murs d'organes).
+- Chaque anticorps activé lit le vecteur de sa cellule → **O(1) par entité**.
+- Recalculé périodiquement (le joueur bouge), coût amorti sur plusieurs ticks.
 
-C'est LA technique clé qui rend le pathfinding de masse viable. (Pour des cibles multiples/individuelles, on ajoutera plus tard des flow fields par groupe ou un cache.)
+C'est LA technique clé qui rend le pathfinding de masse viable.
 
-### 5.3 Machine à états (FSM)
-FSM légère encodée en `byte[] State` + `float[] StateTimer`. États d'exemple : `Wander`, `Seek`, `Flee`, `Idle`. Transitions data-driven, pas de branchements lourds par entité.
+### 5.3 Machine à états (FSM) : activation
+FSM légère encodée en `byte[] State` (0 = Dormant, 1 = Activé). Activation par
+rayon autour du joueur (extensible : bruit, alerte propagée, déclencheurs de
+zone). Data-driven, pas de branchements lourds par entité.
+
+### 5.4 Joueur & projectiles
+Le joueur est une entité à part (un seul, donc pas d'instancing) : twin-stick,
+rendu fil-de-fer via `_Draw`. Les projectiles d'infection sont un **pool SoA**
+séparé (spawn/mort par swap, zéro allocation), résolus contre les anticorps via
+la même grille spatiale.
 
 ### 6. Rendu
 
@@ -163,21 +195,25 @@ Réglable, désactivable pour mesurer le coût brut.
 ```
 project.godot            # config projet Godot 4 .NET
 Spread.csproj            # projet C#
-Main.tscn                # scène minimale (un Node2D + Camera2D, tout est construit en code)
+Main.tscn                # scène minimale (un Node2D ; tout est construit en code)
 scripts/
   Config.cs              # constantes/paramètres réglables
-  Game.cs                # orchestrateur : boucle, systèmes, spawn
-  Simulation.cs          # données SoA des entités + intégration
+  Game.cs                # orchestrateur : boucle, systèmes, joueur, caméra
+  Simulation.cs          # données SoA des anticorps + intégration + compaction
+  Projectiles.cs         # pool SoA des projectiles d'infection
+  Player.cs              # le virus : twin-stick, visée, tir, rendu fil-de-fer
   SpatialHashGrid.cs     # grille de hachage spatiale
-  FlowField.cs           # champ de direction (pathfinding de masse)
+  FlowField.cs           # champ de direction vers le joueur (pathfinding de masse)
   Systems/
-    FlockingSystem.cs
-    StateMachineSystem.cs
-    CollisionSystem.cs
+    AntibodySystem.cs    # activation + errance/nuée + poursuite
+    CollisionSystem.cs   # séparation entité-entité
+    ProjectileSystem.cs  # déplacement + impacts des projectiles
   Rendering/
-    EntityRenderer.cs    # MultiMeshInstance2D
+    WireMesh.cs          # maillages fil-de-fer (polygones, segments)
+    EntityRenderer.cs    # anticorps : MultiMeshInstance2D wireframe
+    ProjectileRenderer.cs# projectiles : MultiMeshInstance2D wireframe
   UI/
-    DebugHud.cs          # FPS, ms, N, contrôles
+    DebugHud.cs          # FPS, populations, ms, contrôles
 ```
 
 ---
