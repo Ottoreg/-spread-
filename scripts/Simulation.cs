@@ -1,4 +1,5 @@
 using Godot;
+using System.Threading.Tasks;
 
 /// <summary>
 /// État de simulation des anticorps en Structure-of-Arrays (SoA).
@@ -87,10 +88,11 @@ public class Simulation
     /// Intègre vitesse/position (Euler semi-implicite), plafonne selon l'état
     /// (dormant plus lent), borne au monde, remet l'accélération à zéro.
     /// </summary>
-    public void Integrate(float dt)
+    public void Integrate(float dt, bool parallel)
     {
         int count = Count;
-        for (int i = 0; i < count; i++)
+
+        void Step(int i)
         {
             float maxSpeed = State[i] == Activated ? Config.MaxSpeed : Config.DormantSpeed;
 
@@ -107,5 +109,10 @@ public class Simulation
 
             Acceleration[i] = Vector2.Zero;
         }
+
+        if (parallel)
+            Parallel.For(0, count, Step);
+        else
+            for (int i = 0; i < count; i++) Step(i);
     }
 }

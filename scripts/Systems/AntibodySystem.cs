@@ -1,4 +1,5 @@
 using Godot;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Comportement des anticorps. Deux régimes selon l'état FSM :
@@ -14,13 +15,15 @@ using Godot;
 /// sur LodStride ; le reste du temps il se contente d'errer (O(1)). Les
 /// anticorps activés sont toujours simulés à fond (c'est le gameplay).
 ///
+/// Parallélisable sans risque : chaque entité lit les voisins (lecture seule) et
+/// n'écrit que sur SON index (acc[i], state[i]). Aucune écriture partagée.
 /// Zéro allocation dans la boucle (indispensable contre les saccades GC).
 /// </summary>
 public static class AntibodySystem
 {
     public static void Run(Simulation sim, SpatialHashGrid grid, FlowField flow,
                            Vector2 playerPos, bool lod, Rect2 activeRect,
-                           int tick, float time)
+                           int tick, float time, bool parallel)
     {
         int count = sim.Count;
         var pos = sim.Position;
@@ -37,9 +40,7 @@ public static class AntibodySystem
         var entities = grid.Entities;
         var cellOf = grid.CellOf;
 
-        int activatedCount = 0;
-
-        for (int i = 0; i < count; i++)
+        void Body(int i)
         {
             Vector2 pi = pos[i];
 
@@ -51,7 +52,6 @@ public static class AntibodySystem
                     state[i] = Simulation.Activated;
             }
             bool activated = state[i] == Simulation.Activated;
-            if (activated) activatedCount++;
 
             // --- LOD : dormant lointain hors phase -> wander seul ---
             bool doNeighbors = true;
@@ -130,6 +130,15 @@ public static class AntibodySystem
             acc[i] += force;
         }
 
+        if (parallel)
+            Parallel.For(0, count, Body);
+        else
+            for (int i = 0; i < count; i++) Body(i);
+
+        // Comptage des activés (pass serial trivial, hors boucle chaude).
+        int activatedCount = 0;
+        for (int i = 0; i < count; i++)
+            if (state[i] == Simulation.Activated) activatedCount++;
         sim.ActivatedCount = activatedCount;
     }
 

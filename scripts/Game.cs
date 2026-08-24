@@ -32,6 +32,7 @@ public partial class Game : Node2D
     // Options runtime
     public bool LodEnabled = true;
     public bool FpsCapped;
+    public bool Multithread = true;
 
     // Stats gameplay
     public int TotalKills;
@@ -80,6 +81,11 @@ public partial class Game : Node2D
         layer.AddChild(_hud);
 
         Engine.MaxFps = 0;
+
+        // Anti "spirale de la mort" : ne jamais empiler plusieurs pas physiques
+        // par image. Au-delà du budget, le jeu ralentit doucement au lieu de
+        // s'effondrer à 0 FPS (dégradation gracieuse, benchmark lisible).
+        Engine.MaxPhysicsStepsPerFrame = 1;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -104,10 +110,10 @@ public partial class Game : Node2D
         _grid.Rebuild(_sim.Position, _sim.Count);
         MsGrid = Lap(sw);
 
-        AntibodySystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time);
+        AntibodySystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, Multithread);
         MsBehavior = Lap(sw);
 
-        _sim.Integrate(dt);
+        _sim.Integrate(dt, Multithread);
         MsIntegrate = Lap(sw);
 
         CollisionSystem.Run(_sim, _grid);
@@ -195,6 +201,8 @@ public partial class Game : Node2D
     // --- API HUD ---
     public void SetEntityCount(int n) => _sim.SetCount(n);
     public void ToggleLod() => LodEnabled = !LodEnabled;
+    public void ToggleThreads() => Multithread = !Multithread;
+    public int ThreadCount => System.Environment.ProcessorCount;
 
     public void ToggleFpsCap()
     {

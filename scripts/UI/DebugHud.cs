@@ -34,6 +34,7 @@ public partial class DebugHud : Control
         AddButton(hb, "+5000", () => Adjust(5000));
         AddButton(hb, "x2", () => SetCount(Game.EntityCount * 2));
         AddButton(hb, "LOD", () => Game.ToggleLod());
+        AddButton(hb, "Threads", () => Game.ToggleThreads());
         AddButton(hb, "Cap FPS", () => Game.ToggleFpsCap());
 
         _slider = new HSlider
@@ -58,7 +59,9 @@ public partial class DebugHud : Control
             $"Projectiles: {Game.ProjectileCount}   Kills: {Game.TotalKills}\n" +
             $"grid {Game.MsGrid:0.00}  ia {Game.MsBehavior:0.00}  integ {Game.MsIntegrate:0.00}  " +
             $"coll {Game.MsCollision:0.00}  proj {Game.MsProjectiles:0.00}  rendu {Game.MsRender:0.00}  (ms)\n" +
-            $"LOD: {(Game.LodEnabled ? "ON" : "off")}    FPS cap: {(Game.FpsCapped ? "60" : "off")}\n" +
+            $"LOD: {(Game.LodEnabled ? "ON" : "off")}    " +
+            $"Threads: {(Game.Multithread ? $"ON ({Game.ThreadCount})" : "off")}    " +
+            $"FPS cap: {(Game.FpsCapped ? "60" : "off")}\n" +
             $"WASD: bouger   Souris: viser   Clic gauche: tirer   Molette: zoom   R: reset";
 
         _slider.SetValueNoSignal(Game.EntityCount);
