@@ -53,6 +53,15 @@ public static class Config
     // --- Grille spatiale : cellule = rayon de perception ---
     public const float CellSize = 40f;
 
+    // --- Carte : organes reliés par des corridors ---
+    public const float MapCellSize = 32f;       // résolution de la grille de navigation/murs
+    public const int OrganCount = 7;
+    public const float OrganMinRadius = 340f;
+    public const float OrganMaxRadius = 620f;
+    public const float CorridorHalfWidth = 70f;
+    public const float MapMargin = 500f;         // marge sans organe au bord du monde
+    public const ulong MapSeed = 1337;           // graine fixe => carte reproductible
+
     // --- LOD de simulation (anticorps dormants lointains) ---
     public const int LodStride = 6;
 }

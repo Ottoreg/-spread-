@@ -10,6 +10,7 @@ public partial class Player : Node2D
     public float Health { get; private set; } = Config.PlayerMaxHealth;
     public Vector2 Velocity { get; private set; }
     public Vector2 AimDir { get; private set; } = Vector2.Right;
+    public OrganMap Map;
 
     private float _fireCooldown;
 
@@ -29,10 +30,11 @@ public partial class Player : Node2D
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) move.X += 1;
 
         Velocity = (move == Vector2.Zero ? Vector2.Zero : move.Normalized() * Config.PlayerSpeed);
-        Vector2 p = Position + Velocity * dt;
-        p.X = Mathf.Clamp(p.X, 0f, Config.WorldWidth);
-        p.Y = Mathf.Clamp(p.Y, 0f, Config.WorldHeight);
-        Position = p;
+        Position = Map != null
+            ? Map.Slide(Position, Velocity * dt)
+            : new Vector2(
+                Mathf.Clamp(Position.X + Velocity.X * dt, 0f, Config.WorldWidth),
+                Mathf.Clamp(Position.Y + Velocity.Y * dt, 0f, Config.WorldHeight));
 
         // Visée (stick droit = souris)
         Vector2 toMouse = GetGlobalMousePosition() - Position;

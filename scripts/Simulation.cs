@@ -29,6 +29,7 @@ public class Simulation
     public int ActivatedCount { get; set; }
 
     private readonly RandomNumberGenerator _rng = new();
+    private OrganMap _map;
 
     public Simulation(int capacity)
     {
@@ -42,6 +43,9 @@ public class Simulation
         _rng.Randomize();
     }
 
+    /// <summary>Carte utilisée pour le spawn en zone ouverte et la collision murs.</summary>
+    public void SetMap(OrganMap map) => _map = map;
+
     public void SetCount(int n)
     {
         n = Mathf.Clamp(n, 0, Capacity);
@@ -53,14 +57,27 @@ public class Simulation
 
     private void SpawnAt(int i)
     {
-        Position[i] = new Vector2(
-            _rng.RandfRange(0f, Config.WorldWidth),
-            _rng.RandfRange(0f, Config.WorldHeight));
+        Position[i] = SampleOpenPosition();
         float a = _rng.RandfRange(0f, Mathf.Tau);
         Velocity[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * Config.DormantSpeed;
         Acceleration[i] = Vector2.Zero;
         State[i] = Dormant;
         Dead[i] = false;
+    }
+
+    private Vector2 SampleOpenPosition()
+    {
+        if (_map == null)
+            return new Vector2(_rng.RandfRange(0f, Config.WorldWidth),
+                               _rng.RandfRange(0f, Config.WorldHeight));
+
+        for (int t = 0; t < 32; t++)
+        {
+            Vector2 p = new(_rng.RandfRange(0f, Config.WorldWidth),
+                            _rng.RandfRange(0f, Config.WorldHeight));
+            if (_map.IsOpenWorld(p)) return p;
+        }
+        return _map.SpawnPoint; // repli : centre du premier organe
     }
 
     /// <summary>Marque une entité comme détruite (appliqué à la compaction).</summary>
@@ -104,11 +121,9 @@ public class Simulation
                 v = v / speed * maxSpeed;
             Velocity[i] = v;
 
-            Vector2 p = Position[i] + v * dt;
-            p.X = Mathf.Clamp(p.X, 0f, Config.WorldWidth);
-            p.Y = Mathf.Clamp(p.Y, 0f, Config.WorldHeight);
-            Position[i] = p;
-
+            Position[i] = _map != null
+                ? _map.Slide(Position[i], v * dt)
+                : ClampWorld(Position[i] + v * dt);
             Acceleration[i] = Vector2.Zero;
         }
 
@@ -116,5 +131,12 @@ public class Simulation
             Parallel.For(0, count, Step);
         else
             for (int i = 0; i < count; i++) Step(i);
+    }
+
+    private static Vector2 ClampWorld(Vector2 p)
+    {
+        p.X = Mathf.Clamp(p.X, 0f, Config.WorldWidth);
+        p.Y = Mathf.Clamp(p.Y, 0f, Config.WorldHeight);
+        return p;
     }
 }

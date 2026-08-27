@@ -8,7 +8,7 @@ using Godot;
 /// </summary>
 public static class ProjectileSystem
 {
-    public static int Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, float dt)
+    public static int Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, OrganMap map, float dt)
     {
         var pos = sim.Position;
         var dead = sim.Dead;
@@ -30,6 +30,10 @@ public static class ProjectileSystem
             proj.Position[i] = p;
 
             if (p.X < 0f || p.X > Config.WorldWidth || p.Y < 0f || p.Y > Config.WorldHeight)
+            { proj.RemoveAt(i); continue; }
+
+            // Impact sur un mur (tissu solide) -> le projectile s'arrête.
+            if (map != null && !map.IsOpenWorld(p))
             { proj.RemoveAt(i); continue; }
 
             int cell = grid.CellIndex(p);

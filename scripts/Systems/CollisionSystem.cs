@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 /// </summary>
 public static class CollisionSystem
 {
-    public static void Run(Simulation sim, SpatialHashGrid grid, bool parallel)
+    public static void Run(Simulation sim, SpatialHashGrid grid, OrganMap map, bool parallel)
     {
         int count = sim.Count;
         var pos = sim.Position;
@@ -67,13 +67,13 @@ public static class CollisionSystem
             disp[i] = push;
         }
 
-        // Passe 2 : applique la poussée (indépendant par index).
+        // Passe 2 : applique la poussée (indépendant par index), en glissant le
+        // long des murs pour ne pas être poussé dans le tissu solide.
         void Apply(int i)
         {
-            Vector2 p = pos[i] + disp[i];
-            p.X = Mathf.Clamp(p.X, 0f, Config.WorldWidth);
-            p.Y = Mathf.Clamp(p.Y, 0f, Config.WorldHeight);
-            pos[i] = p;
+            pos[i] = map != null
+                ? map.Slide(pos[i], disp[i])
+                : ClampWorld(pos[i] + disp[i]);
         }
 
         if (parallel)
@@ -86,5 +86,12 @@ public static class CollisionSystem
             for (int i = 0; i < count; i++) Resolve(i);
             for (int i = 0; i < count; i++) Apply(i);
         }
+    }
+
+    private static Vector2 ClampWorld(Vector2 p)
+    {
+        p.X = Mathf.Clamp(p.X, 0f, Config.WorldWidth);
+        p.Y = Mathf.Clamp(p.Y, 0f, Config.WorldHeight);
+        return p;
     }
 }

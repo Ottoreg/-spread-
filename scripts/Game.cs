@@ -14,12 +14,14 @@ using System.Diagnostics;
 /// </summary>
 public partial class Game : Node2D
 {
+    private OrganMap _map;
     private Simulation _sim;
     private SpatialHashGrid _grid;
     private FlowField _flow;
     private Projectiles _proj;
     private Player _player;
 
+    private MapRenderer _mapRenderer;
     private EntityRenderer _entityRenderer;
     private ProjectileRenderer _projRenderer;
     private Camera2D _camera;
@@ -49,23 +51,29 @@ public partial class Game : Node2D
 
     public override void _Ready()
     {
+        _map = new OrganMap(Config.WorldWidth, Config.WorldHeight, Config.MapCellSize, Config.MapSeed);
+
         _sim = new Simulation(Config.Capacity);
+        _sim.SetMap(_map);
         _sim.SetCount(Config.InitialEntityCount);
 
         _grid = new SpatialHashGrid(Config.WorldWidth, Config.WorldHeight,
                                     Config.CellSize, Config.Capacity);
 
-        _flow = new FlowField(Config.WorldWidth, Config.WorldHeight, Config.CellSize * 2f);
+        _flow = new FlowField(_map);
 
         _proj = new Projectiles(Config.ProjectileCapacity);
 
-        _player = new Player { Position = new Vector2(Config.WorldWidth * 0.5f, Config.WorldHeight * 0.5f) };
+        _player = new Player { Position = _map.SpawnPoint, Map = _map };
         AddChild(_player);
         _flow.SetTargetWorld(_player.Position);
 
         _camera = new Camera2D { Position = _player.Position, Zoom = new Vector2(1f, 1f) };
         AddChild(_camera);
         _camera.MakeCurrent();
+
+        _mapRenderer = new MapRenderer { Map = _map };
+        AddChild(_mapRenderer);
 
         _entityRenderer = new EntityRenderer();
         AddChild(_entityRenderer);
@@ -116,10 +124,10 @@ public partial class Game : Node2D
         _sim.Integrate(dt, Multithread);
         MsIntegrate = Lap(sw);
 
-        CollisionSystem.Run(_sim, _grid, Multithread);
+        CollisionSystem.Run(_sim, _grid, _map, Multithread);
         MsCollision = Lap(sw);
 
-        TotalKills += ProjectileSystem.Run(_proj, _sim, _grid, dt);
+        TotalKills += ProjectileSystem.Run(_proj, _sim, _grid, _map, dt);
         _sim.CompactDead();
         MsProjectiles = Lap(sw);
 
@@ -192,7 +200,7 @@ public partial class Game : Node2D
 
     private void ResetPlayer()
     {
-        _player.Position = new Vector2(Config.WorldWidth * 0.5f, Config.WorldHeight * 0.5f);
+        _player.Position = _map.SpawnPoint;
         _player.Heal();
         var state = _sim.State;
         for (int i = 0; i < _sim.Count; i++) state[i] = Simulation.Dormant;

@@ -199,17 +199,19 @@ Main.tscn                # scène minimale (un Node2D ; tout est construit en co
 scripts/
   Config.cs              # constantes/paramètres réglables
   Game.cs                # orchestrateur : boucle, systèmes, joueur, caméra
-  Simulation.cs          # données SoA des anticorps + intégration + compaction
+  Simulation.cs          # données SoA des anticorps + intégration + compaction + collision murs
   Projectiles.cs         # pool SoA des projectiles d'infection
   Player.cs              # le virus : twin-stick, visée, tir, rendu fil-de-fer
+  OrganMap.cs            # carte : organes + corridors, grille de murs, spawn, glissement
   SpatialHashGrid.cs     # grille de hachage spatiale
-  FlowField.cs           # champ de direction vers le joueur (pathfinding de masse)
+  FlowField.cs           # champ de direction vers le joueur, AWARE DES MURS (pathfinding de masse)
   Systems/
     AntibodySystem.cs    # activation + errance/nuée + poursuite
     CollisionSystem.cs   # séparation entité-entité
     ProjectileSystem.cs  # déplacement + impacts des projectiles
   Rendering/
     WireMesh.cs          # maillages fil-de-fer (polygones, segments)
+    MapRenderer.cs       # organes (cercles) + corridors (parois) en fil-de-fer
     EntityRenderer.cs    # anticorps : MultiMeshInstance2D wireframe
     ProjectileRenderer.cs# projectiles : MultiMeshInstance2D wireframe
   UI/

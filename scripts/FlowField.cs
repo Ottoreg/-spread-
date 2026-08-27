@@ -1,21 +1,20 @@
 using Godot;
 
 /// <summary>
-/// Champ de direction (flow field) pour le pathfinding de masse.
+/// Champ de direction (flow field) pour le pathfinding de masse, désormais
+/// AWARE DES MURS : le BFS ne se propage qu'à travers les cellules ouvertes de
+/// l'<see cref="OrganMap"/>. Les anticorps activés suivent donc les corridors
+/// pour rejoindre le joueur en contournant le tissu solide.
 ///
-/// Au lieu d'un A* PAR entité (impensable à 10 000 entités), on calcule UN SEUL
-/// champ partagé : un BFS depuis la cellule cible remplit un coût par cellule,
-/// puis chaque cellule pointe vers son voisin de plus faible coût.
-/// Chaque entité lit ensuite la direction de sa cellule en O(1).
-///
-/// Recalculé uniquement quand la cible change (SetTargetWorld). Le prototype est
-/// sans obstacle ; ajouter des murs = marquer certaines cellules infranchissables
-/// avant le BFS, sans changer le reste de l'architecture.
+/// Un seul champ partagé, re-ciblé sur le joueur périodiquement. Chaque entité
+/// lit la direction de sa cellule en O(1). Grille alignée sur celle de la carte
+/// (mêmes dimensions/résolution).
 /// </summary>
 public class FlowField
 {
     private readonly int _cols, _rows;
     private readonly float _cellSize;
+    private readonly bool[] _open;
     private readonly Vector2[] _dir;
     private readonly int[] _cost;
     private readonly int[] _queue;
@@ -24,18 +23,16 @@ public class FlowField
     private static readonly int[] Dx = { 1, -1, 0, 0, 1, 1, -1, -1 };
     private static readonly int[] Dy = { 0, 0, 1, -1, 1, -1, 1, -1 };
 
-    public FlowField(float worldW, float worldH, float cellSize)
+    public FlowField(OrganMap map)
     {
-        _cellSize = cellSize;
-        _cols = Mathf.CeilToInt(worldW / cellSize) + 1;
-        _rows = Mathf.CeilToInt(worldH / cellSize) + 1;
+        _cols = map.Cols;
+        _rows = map.Rows;
+        _cellSize = map.CellSize;
+        _open = map.Open;
         _dir = new Vector2[_cols * _rows];
         _cost = new int[_cols * _rows];
         _queue = new int[_cols * _rows];
     }
-
-    public Vector2 TargetWorld =>
-        new((_target.X + 0.5f) * _cellSize, (_target.Y + 0.5f) * _cellSize);
 
     public void SetTargetWorld(Vector2 world)
     {
@@ -59,10 +56,18 @@ public class FlowField
 
         int head = 0, tail = 0;
         int t = _target.Y * _cols + _target.X;
+
+        // Si le joueur est sur un mur (ne devrait pas arriver), on ne propage pas.
+        if (!_open[t])
+        {
+            System.Array.Clear(_dir, 0, _dir.Length);
+            return;
+        }
+
         _cost[t] = 0;
         _queue[tail++] = t;
 
-        // BFS (coût uniforme). Chaque cellule est atteinte au coût optimal une fois.
+        // BFS coût uniforme, uniquement à travers les cellules ouvertes.
         while (head < tail)
         {
             int c = _queue[head++];
@@ -73,13 +78,14 @@ public class FlowField
                 int nx = cx + Dx[k], ny = cy + Dy[k];
                 if (nx < 0 || nx >= _cols || ny < 0 || ny >= _rows) continue;
                 int ni = ny * _cols + nx;
+                if (!_open[ni]) continue;          // mur : infranchissable
                 if (_cost[ni] <= nc) continue;
                 _cost[ni] = nc;
                 _queue[tail++] = ni;
             }
         }
 
-        // Direction = vers le voisin de coût le plus faible.
+        // Direction = vers le voisin ouvert de coût le plus faible.
         for (int cy = 0; cy < _rows; cy++)
         for (int cx = 0; cx < _cols; cx++)
         {
@@ -92,8 +98,9 @@ public class FlowField
             {
                 int nx = cx + Dx[k], ny = cy + Dy[k];
                 if (nx < 0 || nx >= _cols || ny < 0 || ny >= _rows) continue;
-                int cost = _cost[ny * _cols + nx];
-                if (cost < best) { best = cost; bx = Dx[k]; by = Dy[k]; }
+                int ni = ny * _cols + nx;
+                if (!_open[ni]) continue;
+                if (_cost[ni] < best) { best = _cost[ni]; bx = Dx[k]; by = Dy[k]; }
             }
 
             Vector2 d = new(bx, by);
