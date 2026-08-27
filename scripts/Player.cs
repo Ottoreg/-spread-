@@ -22,11 +22,11 @@ public partial class Player : Node2D
     /// <summary>Met à jour déplacement, visée et tir. Retourne au pool les projectiles tirés.</summary>
     public void Tick(float dt, Projectiles projectiles)
     {
-        // Déplacement (stick gauche)
+        // Déplacement ZQSD (AZERTY) + flèches
         Vector2 move = Vector2.Zero;
-        if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up)) move.Y -= 1;
+        if (Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Up)) move.Y -= 1;
         if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) move.Y += 1;
-        if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left)) move.X -= 1;
+        if (Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) move.X -= 1;
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) move.X += 1;
 
         Velocity = (move == Vector2.Zero ? Vector2.Zero : move.Normalized() * Config.PlayerSpeed);

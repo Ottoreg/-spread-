@@ -199,9 +199,10 @@ public partial class Game : Node2D
             if (mb.ButtonIndex == MouseButton.WheelUp) SetZoom(_camera.Zoom.X * 1.1f);
             else if (mb.ButtonIndex == MouseButton.WheelDown) SetZoom(_camera.Zoom.X / 1.1f);
         }
-        else if (e is InputEventKey k && k.Pressed && k.Keycode == Key.R)
+        else if (e is InputEventKey k && k.Pressed)
         {
-            ResetPlayer();
+            if (k.Keycode == Key.R) ResetPlayer();
+            else if (k.Keycode == Key.Escape) _hud.ToggleAdmin();
         }
     }
 

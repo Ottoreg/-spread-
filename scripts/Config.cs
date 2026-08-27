@@ -10,7 +10,7 @@ public static class Config
 {
     // --- Capacité & population ---
     public const int Capacity = 60000;          // mémoire pré-allouée (jamais réallouée)
-    public const int InitialEntityCount = 3000;
+    public const int InitialEntityCount = 500;
 
     // --- Monde (grande map ouverte = organes interconnectés, à venir) ---
     public const float WorldWidth = 6000f;
