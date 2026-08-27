@@ -53,8 +53,51 @@ public partial class MapRenderer : Node2D
         foreach (var o in Map.Organs)
             DrawCircle(o.Center, o.Radius, Chamber);
 
-        // 4) Membrane des organes (bord vif).
+        // 4) Membrane des organes (bord vif), OUVERTE aux jonctions de corridors.
         foreach (var o in Map.Organs)
-            DrawArc(o.Center, o.Radius, 0f, Mathf.Tau, 96, Membrane, 3f, true);
+            DrawMembrane(o);
+    }
+
+    /// <summary>
+    /// Dessine le contour de l'organe en laissant une "porte" (trou dans la
+    /// membrane) à chaque endroit où un corridor se connecte, pour que la salle
+    /// soit visiblement ouverte sur les chemins.
+    /// </summary>
+    private void DrawMembrane(OrganMap.Organ o)
+    {
+        const int segments = 96;
+        float step = Mathf.Tau / segments;
+
+        for (int s = 0; s < segments; s++)
+        {
+            float a0 = s * step;
+            float a1 = a0 + step;
+            float mid = a0 + step * 0.5f;
+            if (IsDoorway(o, mid)) continue; // saute le segment = ouverture
+
+            Vector2 p0 = o.Center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * o.Radius;
+            Vector2 p1 = o.Center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * o.Radius;
+            DrawLine(p0, p1, Membrane, 3f, true);
+        }
+    }
+
+    /// <summary>Vrai si l'angle 'ang' tombe sur une jonction de corridor (porte).</summary>
+    private bool IsDoorway(OrganMap.Organ o, float ang)
+    {
+        foreach (var c in Map.Corridors)
+        {
+            Vector2 other;
+            if (c.A.DistanceSquaredTo(o.Center) < 1f) other = c.B;
+            else if (c.B.DistanceSquaredTo(o.Center) < 1f) other = c.A;
+            else continue;
+
+            float doorAngle = (other - o.Center).Angle();
+            // demi-largeur angulaire de la porte (le corridor sous-tend cet angle).
+            float half = Mathf.Asin(Mathf.Min(c.HalfWidth / o.Radius, 0.99f)) * 1.35f;
+
+            float d = Mathf.Abs(Mathf.AngleDifference(ang, doorAngle));
+            if (d < half) return true;
+        }
+        return false;
     }
 }
