@@ -12,9 +12,10 @@ using Godot;
 /// </summary>
 public static class ViroCellSystem
 {
-    public static AdnGain Run(Simulation sim, float dt)
+    public static AdnGain Run(Simulation sim, float dt, System.Collections.Generic.List<Vector2> bursts)
     {
         int count = sim.Count;
+        var pos = sim.Position;
         var state = sim.State;
         var kind = sim.Kind;
         var timer = sim.Timer;
@@ -39,6 +40,7 @@ public static class ViroCellSystem
             if (timer[i] <= 0f)
             {
                 AddByKind(kind[i], Config.ViroBurstAdn, ref gain);
+                bursts?.Add(pos[i]);
                 sim.Kill(i);
             }
         }

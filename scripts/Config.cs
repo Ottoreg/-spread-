@@ -31,8 +31,15 @@ public static class Config
     public const float WanderWeight = 1.0f;     // errance quand dormant
 
     // --- Activation ---
-    // Un anticorps dormant à moins de ce rayon du joueur se réveille et attaque.
+    // Une défense dormante à moins de ce rayon du joueur se réveille et attaque.
     public const float ActivationRadius = 340f;
+
+    // --- Piste (traque) ---
+    // Le joueur laisse une "piste" tant qu'il bouge. S'il reste immobile plus de
+    // TrailLifetime, les défenses activées perdent sa trace et se mettent à
+    // chercher (errance) au lieu de foncer sur lui.
+    public const float TrailLifetime = 3.5f;
+    public const float TrailMoveThreshold = 10f; // déplacement mini pour rafraîchir la piste
 
     // --- Collisions / tailles ---
     public const float EntityRadius = 5f;

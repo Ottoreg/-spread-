@@ -1,20 +1,21 @@
 using Godot;
 
 /// <summary>
-/// Champ de direction (flow field) pour le pathfinding de masse, désormais
-/// AWARE DES MURS : le BFS ne se propage qu'à travers les cellules ouvertes de
-/// l'<see cref="OrganMap"/>. Les anticorps activés suivent donc les corridors
-/// pour rejoindre le joueur en contournant le tissu solide.
+/// Champ de direction (flow field) pour le pathfinding de masse. Il évite :
+///  - les MURS (tissu solide) via le masque ouvert de l'<see cref="OrganMap"/> ;
+///  - dynamiquement les VIRO-CELLULES (cellules infectées) : leurs cellules de
+///    navigation sont marquées bloquées avant le BFS, si bien que les défenses
+///    activées CONTOURNENT les amas de cellules infectées par le joueur.
 ///
 /// Un seul champ partagé, re-ciblé sur le joueur périodiquement. Chaque entité
-/// lit la direction de sa cellule en O(1). Grille alignée sur celle de la carte
-/// (mêmes dimensions/résolution).
+/// lit la direction de sa cellule en O(1). Grille alignée sur celle de la carte.
 /// </summary>
 public class FlowField
 {
     private readonly int _cols, _rows;
     private readonly float _cellSize;
     private readonly bool[] _open;
+    private readonly bool[] _dynBlock;   // obstacles dynamiques (viro-cellules)
     private readonly Vector2[] _dir;
     private readonly int[] _cost;
     private readonly int[] _queue;
@@ -29,16 +30,20 @@ public class FlowField
         _rows = map.Rows;
         _cellSize = map.CellSize;
         _open = map.Open;
+        _dynBlock = new bool[_cols * _rows];
         _dir = new Vector2[_cols * _rows];
         _cost = new int[_cols * _rows];
         _queue = new int[_cols * _rows];
     }
 
-    public void SetTargetWorld(Vector2 world)
+    /// <summary>Re-cible sur le joueur en marquant les viro-cellules comme obstacles.</summary>
+    public void SetTargetWorld(Vector2 world, Simulation sim)
     {
         int tx = Mathf.Clamp((int)(world.X / _cellSize), 0, _cols - 1);
         int ty = Mathf.Clamp((int)(world.Y / _cellSize), 0, _rows - 1);
         _target = new Vector2I(tx, ty);
+
+        BuildDynamicObstacles(sim);
         Recompute();
     }
 
@@ -49,6 +54,26 @@ public class FlowField
         return _dir[cy * _cols + cx];
     }
 
+    private int CellIndexOf(Vector2 p)
+    {
+        int cx = Mathf.Clamp((int)(p.X / _cellSize), 0, _cols - 1);
+        int cy = Mathf.Clamp((int)(p.Y / _cellSize), 0, _rows - 1);
+        return cy * _cols + cx;
+    }
+
+    private void BuildDynamicObstacles(Simulation sim)
+    {
+        System.Array.Clear(_dynBlock, 0, _dynBlock.Length);
+        var pos = sim.Position;
+        var state = sim.State;
+        int count = sim.Count;
+        for (int i = 0; i < count; i++)
+            if (state[i] == Simulation.Infected)
+                _dynBlock[CellIndexOf(pos[i])] = true;
+    }
+
+    private bool Passable(int ni) => _open[ni] && !_dynBlock[ni];
+
     private void Recompute()
     {
         for (int i = 0; i < _cost.Length; i++)
@@ -57,17 +82,16 @@ public class FlowField
         int head = 0, tail = 0;
         int t = _target.Y * _cols + _target.X;
 
-        // Si le joueur est sur un mur (ne devrait pas arriver), on ne propage pas.
-        if (!_open[t])
+        if (!_open[t]) // joueur sur un mur (ne devrait pas arriver)
         {
             System.Array.Clear(_dir, 0, _dir.Length);
             return;
         }
 
+        // La cellule cible est toujours amorcée (même si un viro-cellule s'y trouve).
         _cost[t] = 0;
         _queue[tail++] = t;
 
-        // BFS coût uniforme, uniquement à travers les cellules ouvertes.
         while (head < tail)
         {
             int c = _queue[head++];
@@ -78,14 +102,13 @@ public class FlowField
                 int nx = cx + Dx[k], ny = cy + Dy[k];
                 if (nx < 0 || nx >= _cols || ny < 0 || ny >= _rows) continue;
                 int ni = ny * _cols + nx;
-                if (!_open[ni]) continue;          // mur : infranchissable
+                if (!Passable(ni)) continue;       // mur ou viro-cellule
                 if (_cost[ni] <= nc) continue;
                 _cost[ni] = nc;
                 _queue[tail++] = ni;
             }
         }
 
-        // Direction = vers le voisin ouvert de coût le plus faible.
         for (int cy = 0; cy < _rows; cy++)
         for (int cx = 0; cx < _cols; cx++)
         {
@@ -99,7 +122,7 @@ public class FlowField
                 int nx = cx + Dx[k], ny = cy + Dy[k];
                 if (nx < 0 || nx >= _cols || ny < 0 || ny >= _rows) continue;
                 int ni = ny * _cols + nx;
-                if (!_open[ni]) continue;
+                if (!Passable(ni)) continue;
                 if (_cost[ni] < best) { best = _cost[ni]; bx = Dx[k]; by = Dy[k]; }
             }
 

@@ -16,7 +16,7 @@ public static class CellSystem
 {
     public static void Run(Simulation sim, SpatialHashGrid grid, FlowField flow,
                            Vector2 playerPos, bool lod, Rect2 activeRect,
-                           int tick, float time, bool parallel)
+                           int tick, float time, bool trailFresh, bool parallel)
     {
         int count = sim.Count;
         var pos = sim.Position;
@@ -108,7 +108,9 @@ public static class CellSystem
                 }
             }
 
-            if (activated)
+            // Poursuite seulement si activée ET piste fraîche (le joueur a bougé
+            // récemment). Sinon la cellule "perd la trace" et cherche (errance).
+            if (activated && trailFresh)
             {
                 Vector2 fdir = flow.SampleDirection(pi);
                 if (fdir.LengthSquared() > 0.0001f)

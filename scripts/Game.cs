@@ -32,6 +32,14 @@ public partial class Game : Node2D
     private int _flowRetarget;
     private float _spawnTimer;
 
+    // Piste (traque)
+    private Vector2 _lastMovePos;
+    private float _trailAge;
+    private bool _trailFresh = true;
+
+    // Positions de burst de viro-cellules (réutilisé, zéro alloc par frame)
+    private readonly System.Collections.Generic.List<Vector2> _bursts = new();
+
     // Options runtime
     public bool LodEnabled = true;
     public bool FpsCapped;
@@ -70,7 +78,8 @@ public partial class Game : Node2D
 
         _player = new Player { Position = _map.SpawnPoint, Map = _map };
         AddChild(_player);
-        _flow.SetTargetWorld(_player.Position);
+        _lastMovePos = _player.Position;
+        _flow.SetTargetWorld(_player.Position, _sim);
 
         _camera = new Camera2D { Position = _player.Position, Zoom = new Vector2(1f, 1f) };
         AddChild(_camera);
@@ -112,11 +121,21 @@ public partial class Game : Node2D
 
         _player.Tick(dt, _proj);
 
+        // Piste : fraîche tant que le joueur bouge. S'il reste immobile trop
+        // longtemps, les défenses activées perdent sa trace.
+        if (_player.Position.DistanceTo(_lastMovePos) > Config.TrailMoveThreshold)
+        {
+            _lastMovePos = _player.Position;
+            _trailAge = 0f;
+        }
+        else _trailAge += dt;
+        _trailFresh = _trailAge < Config.TrailLifetime;
+
         // Pathfinding de masse : on re-cible le flow field sur le joueur
-        // périodiquement (le joueur bouge) — coûteux mais amorti sur plusieurs ticks.
+        // périodiquement, en contournant les viro-cellules (obstacles dynamiques).
         if (--_flowRetarget <= 0)
         {
-            _flow.SetTargetWorld(_player.Position);
+            _flow.SetTargetWorld(_player.Position, _sim);
             _flowRetarget = 8;
         }
 
@@ -126,7 +145,7 @@ public partial class Game : Node2D
         _grid.Rebuild(_sim.Position, _sim.Count);
         MsGrid = Lap(sw);
 
-        CellSystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, Multithread);
+        CellSystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, _trailFresh, Multithread);
         MsBehavior = Lap(sw);
 
         _sim.Integrate(dt, Multithread);
@@ -135,16 +154,54 @@ public partial class Game : Node2D
         CollisionSystem.Run(_sim, _grid, _map, Multithread);
         MsCollision = Lap(sw);
 
+        _bursts.Clear();
         AdnGain gain = ProjectileSystem.Run(_proj, _sim, _grid, _map, dt);
-        gain.Add(ViroCellSystem.Run(_sim, dt));
+        gain.Add(ViroCellSystem.Run(_sim, dt, _bursts));
         _sim.CompactDead();
         ApplyGain(gain);
         MsProjectiles = Lap(sw);
 
         ApplyContactInteractions(dt);
         UpdateAlertAndSpawns(dt);
+        SpawnBursts();
 
         _camera.Position = _player.Position;
+    }
+
+    // Explosion de particules à la fin d'incubation d'une viro-cellule (culling caméra).
+    private void SpawnBursts()
+    {
+        if (_bursts.Count == 0) return;
+        Rect2 view = GetVisibleWorldRect();
+        foreach (var p in _bursts)
+            if (view.HasPoint(p))
+                SpawnBurst(p);
+    }
+
+    private void SpawnBurst(Vector2 pos)
+    {
+        var fx = new CpuParticles2D
+        {
+            Position = pos,
+            ZIndex = 6,
+            Emitting = true,
+            OneShot = true,
+            Explosiveness = 1f,
+            Amount = 14,
+            Lifetime = 0.5f,
+            Direction = Vector2.Up,
+            Spread = 180f,
+            Gravity = Vector2.Zero,
+            InitialVelocityMin = 70f,
+            InitialVelocityMax = 170f,
+            ScaleAmountMin = 1.5f,
+            ScaleAmountMax = 2.5f,
+            Color = new Color(0.45f, 1f, 0.5f)
+        };
+        AddChild(fx);
+        // Libération automatique après la durée de vie.
+        var timer = GetTree().CreateTimer(1.0);
+        timer.Timeout += fx.QueueFree;
     }
 
     private void ApplyGain(in AdnGain g)
