@@ -88,6 +88,10 @@ public partial class Game : Node2D
         _hud = new DebugHud { Game = this };
         layer.AddChild(_hud);
 
+        // Fond = tissu de l'hôte (sombre). Les cavités des organes, plus claires,
+        // se détachent comme des chambres creusées dans la chair.
+        RenderingServer.SetDefaultClearColor(new Color(0.09f, 0.035f, 0.05f));
+
         Engine.MaxFps = 0;
 
         // Anti "spirale de la mort" : ne jamais empiler plusieurs pas physiques

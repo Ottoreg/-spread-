@@ -112,6 +112,19 @@ public class OrganMap
         return false;
     }
 
+    /// <summary>
+    /// Test ANALYTIQUE (vraies formes : cercles + capsules), utilisé pour le
+    /// mouvement/collision et le spawn -> parois parfaitement lisses, pas
+    /// d'escaliers de pixels. (La grille Open[] reste pour le flow field.)
+    /// </summary>
+    public bool IsOpen(Vector2 p)
+    {
+        if (p.X < 0f || p.Y < 0f || p.X > Config.WorldWidth || p.Y > Config.WorldHeight)
+            return false;
+        return IsInsideShapes(p);
+    }
+
+    /// <summary>Test via la grille rastérisée (utilisé par le flow field).</summary>
     public bool IsOpenWorld(Vector2 p)
     {
         if (p.X < 0f || p.Y < 0f) return false;
@@ -136,10 +149,10 @@ public class OrganMap
         float x = from.X, y = from.Y;
 
         float nx = x + delta.X;
-        if (IsOpenWorld(new Vector2(nx, y))) x = nx;
+        if (IsOpen(new Vector2(nx, y))) x = nx;
 
         float ny = y + delta.Y;
-        if (IsOpenWorld(new Vector2(x, ny))) y = ny;
+        if (IsOpen(new Vector2(x, ny))) y = ny;
 
         return new Vector2(x, y);
     }

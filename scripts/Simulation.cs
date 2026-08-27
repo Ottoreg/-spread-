@@ -75,7 +75,7 @@ public class Simulation
         {
             Vector2 p = new(_rng.RandfRange(0f, Config.WorldWidth),
                             _rng.RandfRange(0f, Config.WorldHeight));
-            if (_map.IsOpenWorld(p)) return p;
+            if (_map.IsOpen(p)) return p;
         }
         return _map.SpawnPoint; // repli : centre du premier organe
     }

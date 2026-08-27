@@ -33,7 +33,7 @@ public static class ProjectileSystem
             { proj.RemoveAt(i); continue; }
 
             // Impact sur un mur (tissu solide) -> le projectile s'arrête.
-            if (map != null && !map.IsOpenWorld(p))
+            if (map != null && !map.IsOpen(p))
             { proj.RemoveAt(i); continue; }
 
             int cell = grid.CellIndex(p);
