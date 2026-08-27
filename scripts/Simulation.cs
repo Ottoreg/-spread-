@@ -13,8 +13,10 @@ using System.Threading.Tasks;
 /// </summary>
 public class Simulation
 {
+    // États de comportement/infection.
     public const byte Dormant = 0;
     public const byte Activated = 1;
+    public const byte Infected = 2;  // devenue viro-cellule
 
     public readonly int Capacity;
     public int Count { get; private set; }
@@ -23,6 +25,9 @@ public class Simulation
     public readonly Vector2[] Velocity;
     public readonly Vector2[] Acceleration;
     public readonly byte[] State;
+    public readonly byte[] Kind;      // CellKind (Defensive/Prey/Neutral)
+    public readonly float[] Hp;       // PV restants (cellules à vaincre)
+    public readonly float[] Timer;    // incubation quand Infected
     public readonly bool[] Dead;
     public readonly Vector2[] Displacement; // tampon de poussée des collisions (parallèle)
 
@@ -38,6 +43,9 @@ public class Simulation
         Velocity = new Vector2[capacity];
         Acceleration = new Vector2[capacity];
         State = new byte[capacity];
+        Kind = new byte[capacity];
+        Hp = new float[capacity];
+        Timer = new float[capacity];
         Dead = new bool[capacity];
         Displacement = new Vector2[capacity];
         _rng.Randomize();
@@ -57,12 +65,57 @@ public class Simulation
 
     private void SpawnAt(int i)
     {
-        Position[i] = SampleOpenPosition();
-        float a = _rng.RandfRange(0f, Mathf.Tau);
-        Velocity[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * Config.DormantSpeed;
-        Acceleration[i] = Vector2.Zero;
+        InitCell(i, SampleOpenPosition(), RandomKind());
+    }
+
+    /// <summary>Ajoute une cellule (spawn dynamique, ex. production d'alerte).</summary>
+    public void SpawnCell(Vector2 pos, byte kind)
+    {
+        if (Count >= Capacity) return;
+        InitCell(Count, pos, kind);
+        Count++;
+    }
+
+    private void InitCell(int i, Vector2 pos, byte kind)
+    {
+        Position[i] = pos;
+        Kind[i] = kind;
         State[i] = Dormant;
         Dead[i] = false;
+        Timer[i] = 0f;
+
+        if (kind == CellKind.Prey)
+        {
+            Velocity[i] = Vector2.Zero;      // immobile
+            Hp[i] = 1f;
+        }
+        else
+        {
+            float a = _rng.RandfRange(0f, Mathf.Tau);
+            Velocity[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * Config.DormantSpeed;
+            Hp[i] = kind == CellKind.Defensive ? Config.DefensiveHp : Config.NeutralHp;
+        }
+        Acceleration[i] = Vector2.Zero;
+    }
+
+    private byte RandomKind()
+    {
+        float r = _rng.Randf();
+        if (r < Config.DefensiveShare) return CellKind.Defensive;
+        if (r < Config.DefensiveShare + Config.PreyShare) return CellKind.Prey;
+        return CellKind.Neutral;
+    }
+
+    /// <summary>
+    /// Passe une cellule à l'état viro-cellule (infectée). Timer = incubation ;
+    /// Hp (inutile après infection) est réutilisé comme minuteur de production.
+    /// </summary>
+    public void Infect(int i)
+    {
+        State[i] = Infected;
+        Velocity[i] = Vector2.Zero;
+        Timer[i] = Config.IncubationTime;
+        Hp[i] = Config.ViroProductionInterval;
     }
 
     private Vector2 SampleOpenPosition()
@@ -96,6 +149,9 @@ public class Simulation
                 Velocity[w] = Velocity[r];
                 Acceleration[w] = Acceleration[r];
                 State[w] = State[r];
+                Kind[w] = Kind[r];
+                Hp[w] = Hp[r];
+                Timer[w] = Timer[r];
             }
             Dead[w] = false;
             w++;

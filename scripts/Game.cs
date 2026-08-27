@@ -30,6 +30,7 @@ public partial class Game : Node2D
     private int _tick;
     private float _time;
     private int _flowRetarget;
+    private float _spawnTimer;
 
     // Options runtime
     public bool LodEnabled = true;
@@ -37,7 +38,9 @@ public partial class Game : Node2D
     public bool Multithread = true;
 
     // Stats gameplay
-    public int TotalKills;
+    public int TotalInfections;
+    public int AdnOffensive, AdnSurvival, AdnReinforce;
+    public float Alert;
 
     // Profiling (ms)
     public double MsGrid, MsBehavior, MsIntegrate, MsCollision, MsProjectiles, MsRender;
@@ -48,6 +51,7 @@ public partial class Game : Node2D
     public int VisibleCount => _entityRenderer.VisibleCount;
     public int ProjectileCount => _proj.Count;
     public float PlayerHealth => _player.Health;
+    public float AlertPct => Alert / Config.AlertMax * 100f;
 
     public override void _Ready()
     {
@@ -122,7 +126,7 @@ public partial class Game : Node2D
         _grid.Rebuild(_sim.Position, _sim.Count);
         MsGrid = Lap(sw);
 
-        AntibodySystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, Multithread);
+        CellSystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, Multithread);
         MsBehavior = Lap(sw);
 
         _sim.Integrate(dt, Multithread);
@@ -131,13 +135,51 @@ public partial class Game : Node2D
         CollisionSystem.Run(_sim, _grid, _map, Multithread);
         MsCollision = Lap(sw);
 
-        TotalKills += ProjectileSystem.Run(_proj, _sim, _grid, _map, dt);
+        AdnGain gain = ProjectileSystem.Run(_proj, _sim, _grid, _map, dt);
+        gain.Add(ViroCellSystem.Run(_sim, dt));
         _sim.CompactDead();
+        ApplyGain(gain);
         MsProjectiles = Lap(sw);
 
-        ApplyContactDamage(dt);
+        ApplyContactInteractions(dt);
+        UpdateAlertAndSpawns(dt);
 
         _camera.Position = _player.Position;
+    }
+
+    private void ApplyGain(in AdnGain g)
+    {
+        AdnOffensive += g.Offensive;
+        AdnSurvival += g.Survival;
+        AdnReinforce += g.Reinforce;
+        TotalInfections += g.Infections;
+        Alert = Mathf.Min(Config.AlertMax, Alert + g.Alert);
+    }
+
+    // Alerte : décroît lentement ; pilote la cadence de production de défenses.
+    private void UpdateAlertAndSpawns(float dt)
+    {
+        Alert = Mathf.Max(0f, Alert - Config.AlertDecayPerSec * dt);
+
+        float t = Alert / Config.AlertMax;
+        float interval = Mathf.Lerp(Config.AlertSpawnSlow, Config.AlertSpawnFast, t);
+
+        _spawnTimer -= dt;
+        if (_spawnTimer <= 0f)
+        {
+            _spawnTimer = interval;
+            SpawnDefenseFromAlert();
+        }
+    }
+
+    private void SpawnDefenseFromAlert()
+    {
+        if (_map.Organs.Count == 0) return;
+        var o = _map.Organs[(int)(GD.Randf() * _map.Organs.Count) % _map.Organs.Count];
+        float ang = GD.Randf() * Mathf.Tau;
+        float r = GD.Randf() * o.Radius * 0.8f;
+        Vector2 pos = o.Center + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * r;
+        _sim.SpawnCell(pos, CellKind.Defensive);
     }
 
     public override void _Process(double delta)
@@ -163,8 +205,8 @@ public partial class Game : Node2D
         }
     }
 
-    // --- Dégâts de contact : anticorps activés qui touchent le joueur ---
-    private void ApplyContactDamage(float dt)
+    // --- Contact joueur : défensives activées blessent ; proies s'infectent ---
+    private void ApplyContactInteractions(float dt)
     {
         Vector2 pp = _player.Position;
         float reach = Config.PlayerRadius + Config.EntityRadius + 2f;
@@ -177,8 +219,11 @@ public partial class Game : Node2D
         var entities = _grid.Entities;
         var pos = _sim.Position;
         var state = _sim.State;
+        var kind = _sim.Kind;
 
         int contacts = 0;
+        AdnGain gain = default;
+
         for (int oy = -1; oy <= 1; oy++)
         {
             int ny = cy + oy;
@@ -191,23 +236,38 @@ public partial class Game : Node2D
                 for (int kk = cellStart[nc]; kk < cellStart[nc + 1]; kk++)
                 {
                     int j = entities[kk];
-                    if (state[j] != Simulation.Activated) continue;
+                    if (state[j] == Simulation.Infected) continue;
                     Vector2 d = pos[j] - pp;
-                    if (d.X * d.X + d.Y * d.Y <= reach2) contacts++;
+                    if (d.X * d.X + d.Y * d.Y > reach2) continue;
+
+                    if (kind[j] == CellKind.Defensive && state[j] == Simulation.Activated)
+                        contacts++;
+                    else if (kind[j] == CellKind.Prey)
+                    {
+                        _sim.Infect(j); // cellule d'organe : infectée au contact
+                        gain.Survival += Config.AdnPreyInfect;
+                        gain.Alert += Config.AlertPerPrey;
+                        gain.Infections++;
+                    }
                 }
             }
         }
 
         if (contacts > 0)
             _player.TakeDamage(Config.PlayerContactDps * dt * Mathf.Min(contacts, 6));
+        if (gain.Infections > 0)
+            ApplyGain(gain);
     }
 
     private void ResetPlayer()
     {
         _player.Position = _map.SpawnPoint;
         _player.Heal();
-        var state = _sim.State;
-        for (int i = 0; i < _sim.Count; i++) state[i] = Simulation.Dormant;
+        Alert = 0f;
+        AdnOffensive = AdnSurvival = AdnReinforce = 0;
+        TotalInfections = 0;
+        _sim.SetCount(0);
+        _sim.SetCount(Config.InitialEntityCount);
     }
 
     // --- API HUD ---

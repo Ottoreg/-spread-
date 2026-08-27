@@ -63,7 +63,7 @@ _PhysicsProcess(delta)  — timestep fixe
   1. Player.Tick        → déplacement, visée, tir (spawn projectiles)
   2. FlowField retarget → re-cible le champ sur le joueur (amorti /8 ticks)
   3. SpatialGrid.Rebuild→ réindexe les entités dans la grille
-  4. AntibodySystem     → activation + errance (dormant) / nuée+poursuite (activé)
+  4. CellSystem         → comportement par type (défense/proie/neutre) + activation
   5. Integrate          → applique vitesse (cap selon état), bornes, Position
   6. CollisionSystem    → résout les chevauchements (via grille)
   7. ProjectileSystem   → déplace les tirs, résout impacts (via grille), kills
@@ -205,10 +205,12 @@ scripts/
   OrganMap.cs            # carte : organes + corridors, grille de murs, spawn, glissement
   SpatialHashGrid.cs     # grille de hachage spatiale
   FlowField.cs           # champ de direction vers le joueur, AWARE DES MURS (pathfinding de masse)
+  Cells.cs               # types de cellules (CellKind) + struct AdnGain
   Systems/
-    AntibodySystem.cs    # activation + errance/nuée + poursuite
+    CellSystem.cs        # comportement par type + activation (défense/proie/neutre)
     CollisionSystem.cs   # séparation entité-entité
-    ProjectileSystem.cs  # déplacement + impacts des projectiles
+    ProjectileSystem.cs  # impacts : dégâts/infection selon le type de cellule
+    ViroCellSystem.cs    # viro-cellules : incubation, production et burst d'ADN
   Rendering/
     WireMesh.cs          # maillages fil-de-fer (polygones, segments)
     MapRenderer.cs       # organes (cercles) + corridors (parois) en fil-de-fer

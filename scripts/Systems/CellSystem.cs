@@ -2,24 +2,17 @@ using Godot;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Comportement des anticorps. Deux régimes selon l'état FSM :
+/// Comportement des cellules selon leur type (GDD §5) et leur état.
 ///
-///  - DORMANT : erre dans la map (wander lisse et déterministe) + légère
-///    séparation pour ne pas s'empiler. S'active si le joueur entre dans son
-///    rayon d'activation.
-///  - ACTIVÉ : nuée qui poursuit le joueur — séparation/alignement/cohésion
-///    (via la grille spatiale) + pilotage vers le joueur fourni par le flow
-///    field (pathfinding de masse, extensible aux obstacles/organes).
+///  - Infectée (viro-cellule) : ne bouge plus, ignorée ici (gérée par ViroCellSystem).
+///  - Prey : immobile (cellule d'organe). Aucune force.
+///  - Neutral : passive — erre + séparation, ne s'active jamais.
+///  - Defensive : dormante (erre) -> activée près du joueur -> nuée + poursuite
+///    (flow field aware des murs). Seul type qui attaque le joueur.
 ///
-/// LOD : un anticorps dormant hors écran ne recalcule ses voisins que 1 tick
-/// sur LodStride ; le reste du temps il se contente d'errer (O(1)). Les
-/// anticorps activés sont toujours simulés à fond (c'est le gameplay).
-///
-/// Parallélisable sans risque : chaque entité lit les voisins (lecture seule) et
-/// n'écrit que sur SON index (acc[i], state[i]). Aucune écriture partagée.
-/// Zéro allocation dans la boucle (indispensable contre les saccades GC).
+/// Parallélisable sans risque (écriture par index propre). Zéro allocation.
 /// </summary>
-public static class AntibodySystem
+public static class CellSystem
 {
     public static void Run(Simulation sim, SpatialHashGrid grid, FlowField flow,
                            Vector2 playerPos, bool lod, Rect2 activeRect,
@@ -30,6 +23,7 @@ public static class AntibodySystem
         var vel = sim.Velocity;
         var acc = sim.Acceleration;
         var state = sim.State;
+        var kind = sim.Kind;
 
         float perc2 = Config.PerceptionRadius * Config.PerceptionRadius;
         float sep2 = Config.SeparationRadius * Config.SeparationRadius;
@@ -42,18 +36,23 @@ public static class AntibodySystem
 
         void Body(int i)
         {
+            // Viro-cellules et proies : pas de pilotage.
+            if (state[i] == Simulation.Infected || kind[i] == CellKind.Prey)
+                return;
+
+            bool defensive = kind[i] == CellKind.Defensive;
             Vector2 pi = pos[i];
 
-            // --- Activation ---
-            if (state[i] == Simulation.Dormant)
+            // Activation (défensives uniquement).
+            if (defensive && state[i] == Simulation.Dormant)
             {
                 Vector2 dp = pi - playerPos;
                 if (dp.X * dp.X + dp.Y * dp.Y < actR2)
                     state[i] = Simulation.Activated;
             }
-            bool activated = state[i] == Simulation.Activated;
+            bool activated = defensive && state[i] == Simulation.Activated;
 
-            // --- LOD : dormant lointain hors phase -> wander seul ---
+            // LOD : cellule non activée, lointaine, hors phase -> wander seul.
             bool doNeighbors = true;
             if (!activated && lod && !activeRect.HasPoint(pi)
                 && ((tick + i) % Config.LodStride != 0))
@@ -117,7 +116,6 @@ public static class AntibodySystem
             }
             else
             {
-                // Wander lisse et déterministe (pas de RNG, pas d'allocation).
                 float wa = time * 0.4f + i * 0.137f;
                 Vector2 wdir = new(Mathf.Cos(wa), Mathf.Sin(wa));
                 force += Steer(wdir * Config.DormantSpeed, vel[i], Config.DormantSpeed) * Config.WanderWeight;
@@ -135,7 +133,7 @@ public static class AntibodySystem
         else
             for (int i = 0; i < count; i++) Body(i);
 
-        // Comptage des activés (pass serial trivial, hors boucle chaude).
+        // Comptage des défensives activées (hors boucle chaude).
         int activatedCount = 0;
         for (int i = 0; i < count; i++)
             if (state[i] == Simulation.Activated) activatedCount++;

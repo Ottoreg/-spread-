@@ -1,17 +1,25 @@
 using Godot;
 
 /// <summary>
-/// Déplace les projectiles et résout les impacts contre les anticorps via la
-/// grille spatiale (voisinage 3x3). Un impact marque l'anticorps détruit
-/// (compaction ultérieure) et retire le projectile. Un projectile expiré ou
-/// sorti du monde est également retiré.
+/// Déplace les projectiles et résout les impacts contre les cellules (via la
+/// grille spatiale). Effet selon le type de cellule touchée (GDD §5) :
+///  - Prey    : infectée immédiatement -> ADN de survie.
+///  - Defensive : PV -= dégâts ; à 0, vaincue puis infectée -> ADN offensif.
+///  - Neutral : PV -= dégâts ; au seuil (0), infectée -> ADN de renforcement.
+///
+/// Les cellules déjà infectées (viro-cellules) sont ignorées. Le projectile est
+/// retiré à l'impact (mur, cellule) ou à expiration. Renvoie l'ADN/alerte gagnés.
 /// </summary>
 public static class ProjectileSystem
 {
-    public static int Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, OrganMap map, float dt)
+    public static AdnGain Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, OrganMap map, float dt)
     {
         var pos = sim.Position;
         var dead = sim.Dead;
+        var state = sim.State;
+        var kind = sim.Kind;
+        var hp = sim.Hp;
+
         int cols = grid.Cols, rows = grid.Rows;
         var cellStart = grid.CellStart;
         var entities = grid.Entities;
@@ -19,7 +27,8 @@ public static class ProjectileSystem
         float hitR = Config.ProjectileRadius + Config.EntityRadius;
         float hitR2 = hitR * hitR;
 
-        int kills = 0;
+        AdnGain gain = default;
+
         int i = 0;
         while (i < proj.Count)
         {
@@ -32,7 +41,6 @@ public static class ProjectileSystem
             if (p.X < 0f || p.X > Config.WorldWidth || p.Y < 0f || p.Y > Config.WorldHeight)
             { proj.RemoveAt(i); continue; }
 
-            // Impact sur un mur (tissu solide) -> le projectile s'arrête.
             if (map != null && !map.IsOpen(p))
             { proj.RemoveAt(i); continue; }
 
@@ -54,15 +62,14 @@ public static class ProjectileSystem
                     for (int k = start; k < end; k++)
                     {
                         int j = entities[k];
-                        if (dead[j]) continue;
+                        if (dead[j] || state[j] == Simulation.Infected) continue;
+
                         Vector2 d = pos[j] - p;
-                        if (d.X * d.X + d.Y * d.Y <= hitR2)
-                        {
-                            sim.Kill(j);
-                            kills++;
-                            hit = true;
-                            break;
-                        }
+                        if (d.X * d.X + d.Y * d.Y > hitR2) continue;
+
+                        HitCell(sim, j, kind, hp, ref gain);
+                        hit = true;
+                        break;
                     }
                 }
             }
@@ -71,6 +78,41 @@ public static class ProjectileSystem
             i++;
         }
 
-        return kills;
+        return gain;
+    }
+
+    private static void HitCell(Simulation sim, int j, byte[] kind, float[] hp, ref AdnGain gain)
+    {
+        switch (kind[j])
+        {
+            case CellKind.Prey:
+                sim.Infect(j);
+                gain.Survival += Config.AdnPreyInfect;
+                gain.Alert += Config.AlertPerPrey;
+                gain.Infections++;
+                break;
+
+            case CellKind.Defensive:
+                hp[j] -= Config.ProjectileDamage;
+                if (hp[j] <= 0f)
+                {
+                    sim.Infect(j);
+                    gain.Offensive += Config.AdnDefensiveDefeat;
+                    gain.Alert += Config.AlertPerDefensive;
+                    gain.Infections++;
+                }
+                break;
+
+            default: // Neutral
+                hp[j] -= Config.ProjectileDamage;
+                if (hp[j] <= 0f)
+                {
+                    sim.Infect(j);
+                    gain.Reinforce += Config.AdnNeutralInfect;
+                    gain.Alert += Config.AlertPerNeutral;
+                    gain.Infections++;
+                }
+                break;
+        }
     }
 }
