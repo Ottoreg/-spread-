@@ -24,6 +24,7 @@ public class Simulation
     public readonly Vector2[] Acceleration;
     public readonly byte[] State;
     public readonly bool[] Dead;
+    public readonly Vector2[] Displacement; // tampon de poussée des collisions (parallèle)
 
     public int ActivatedCount { get; set; }
 
@@ -37,6 +38,7 @@ public class Simulation
         Acceleration = new Vector2[capacity];
         State = new byte[capacity];
         Dead = new bool[capacity];
+        Displacement = new Vector2[capacity];
         _rng.Randomize();
     }
 

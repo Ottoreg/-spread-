@@ -116,7 +116,7 @@ public partial class Game : Node2D
         _sim.Integrate(dt, Multithread);
         MsIntegrate = Lap(sw);
 
-        CollisionSystem.Run(_sim, _grid);
+        CollisionSystem.Run(_sim, _grid, Multithread);
         MsCollision = Lap(sw);
 
         TotalKills += ProjectileSystem.Run(_proj, _sim, _grid, dt);
