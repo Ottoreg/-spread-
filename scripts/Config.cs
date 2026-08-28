@@ -50,12 +50,12 @@ public static class Config
     public const float PlayerMaxHealth = 100f;
     public const float PlayerContactDps = 14f;  // dégâts/s au contact d'un anticorps activé
 
-    // --- Projectiles (infection) ---
-    public const int ProjectileCapacity = 4000;
-    public const float ProjectileSpeed = 720f;
-    public const float ProjectileLifetime = 1.1f;
-    public const float ProjectileRadius = 6f;
-    public const float FireInterval = 0.085f;   // cadence de tir (s)
+    // --- Attaque de mêlée (coup de lame) — attaque par défaut du virus ---
+    public const float MeleeDamage = 1f;
+    public const float AttackInterval = 0.34f;   // cooldown entre deux coups (s)
+    public const float MeleeRange = 66f;         // portée du coup
+    public const float MeleeArcDegrees = 110f;   // ouverture totale de l'arc de coupe
+    public const float SlashDuration = 0.14f;    // durée de l'animation du coup
 
     // --- Grille spatiale : cellule = rayon de perception ---
     public const float CellSize = 40f;
@@ -77,10 +77,9 @@ public static class Config
     public const float PreyShare = 0.12f;
     public const float NeutralShare = 0.28f;
 
-    // --- PV & dégâts (cellules à vaincre) ---
+    // --- PV (cellules à vaincre) ---
     public const float DefensiveHp = 3f;
     public const float NeutralHp = 2f;
-    public const float ProjectileDamage = 1f;
 
     // --- ADN viral gagné (à l'infection) ---
     public const int AdnDefensiveDefeat = 2;  // offensif

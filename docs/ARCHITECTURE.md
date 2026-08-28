@@ -59,20 +59,21 @@ Avantages : mémoire contiguë (cache-friendly), aucune surcharge de l'arbre de 
 Ordre d'exécution à chaque pas de simulation (timestep fixe) :
 
 ```
-_PhysicsProcess(delta)  — timestep fixe
-  1. Player.Tick        → déplacement, visée, tir (spawn projectiles)
+_PhysicsProcess(delta)  — timestep fixe (en pause si l'arbre de compétences est ouvert)
+  1. Player.Tick        → déplacement, visée, attaque de mêlée (AttackFired)
   2. FlowField retarget → re-cible le champ sur le joueur (amorti /8 ticks)
-  3. SpatialGrid.Rebuild→ réindexe les entités dans la grille
-  4. CellSystem         → comportement par type (défense/proie/neutre) + activation
-  5. Integrate          → applique vitesse (cap selon état), bornes, Position
-  6. CollisionSystem    → résout les chevauchements (via grille)
-  7. ProjectileSystem   → déplace les tirs, résout impacts (via grille), kills
-  8. Simulation.Compact → retire les anticorps détruits (compaction dense)
-  9. ContactDamage      → anticorps activés touchant le joueur → dégâts
+  3. SpatialGrid.Rebuild→ réindexe les cellules dans la grille
+  4. MeleeSystem        → coup de lame : impacts en arc devant le joueur (via grille)
+  5. CellSystem         → comportement par type (défense/proie/neutre) + activation
+  6. Integrate          → applique vitesse (cap selon état), murs, Position
+  7. CollisionSystem    → résout les chevauchements (via grille)
+  8. ViroCellSystem     → incubation/production/burst des viro-cellules
+  9. Simulation.Compact → retire les cellules détruites (compaction dense)
+ 10. ContactDamage      → défenses activées touchant le joueur → dégâts
 
 _Process(delta)
-  • EntityRenderer / ProjectileRenderer → MultiMesh (fil-de-fer) + culling
-  • DebugHud → FPS, populations, ms par système
+  • EntityRenderer → MultiMesh (fil-de-fer) par type + culling
+  • DebugHud / SkillTreeHud → HUD gameplay, admin, arbre de compétences
 ```
 
 Chaque système est une classe séparée opérant sur les tableaux SoA. Aucun système n'alloue par entité et par frame.
@@ -195,13 +196,13 @@ Réglable, désactivable pour mesurer le coût brut.
 ```
 project.godot            # config projet Godot 4 .NET
 Spread.csproj            # projet C#
-Main.tscn                # scène minimale (un Node2D ; tout est construit en code)
+Main.tscn                # scène minimale (un Node "Root" ; tout est construit en code)
 scripts/
   Config.cs              # constantes/paramètres réglables
+  Root.cs                # bascule menu d'accueil <-> partie
   Game.cs                # orchestrateur : boucle, systèmes, joueur, caméra
-  Simulation.cs          # données SoA des anticorps + intégration + compaction + collision murs
-  Projectiles.cs         # pool SoA des projectiles d'infection
-  Player.cs              # le virus : twin-stick, visée, tir, rendu fil-de-fer
+  Simulation.cs          # données SoA des cellules + intégration + compaction + collision murs
+  Player.cs              # le virus : twin-stick, visée, coup de lame, rendu fil-de-fer
   OrganMap.cs            # carte : organes + corridors, grille de murs, spawn, glissement
   SpatialHashGrid.cs     # grille de hachage spatiale
   FlowField.cs           # champ de direction vers le joueur, AWARE DES MURS (pathfinding de masse)
@@ -210,16 +211,16 @@ scripts/
   Systems/
     CellSystem.cs        # comportement par type + activation (défense/proie/neutre)
     CollisionSystem.cs   # séparation entité-entité
-    ProjectileSystem.cs  # impacts : dégâts/infection selon le type de cellule
+    MeleeSystem.cs       # coup de lame : impacts en arc, dégâts/infection par type
     ViroCellSystem.cs    # viro-cellules : incubation, production et burst d'ADN
   Rendering/
     WireMesh.cs          # maillages fil-de-fer (polygones, segments)
-    MapRenderer.cs       # organes (cercles) + corridors (parois) en fil-de-fer
-    EntityRenderer.cs    # anticorps : MultiMeshInstance2D wireframe
-    ProjectileRenderer.cs# projectiles : MultiMeshInstance2D wireframe
+    MapRenderer.cs       # organes (cavités) + corridors + membranes
+    EntityRenderer.cs    # cellules : MultiMeshInstance2D wireframe (forme par type)
   UI/
+    MainMenu.cs          # menu d'accueil : nouvelle partie + choix de la seed
     DebugHud.cs          # HUD gameplay (alerte, ADN) + panneau admin (Échap)
-    SkillTreeHud.cs      # interface de l'arbre de compétences (touche C)
+    SkillTreeHud.cs      # arbre de compétences par catégorie d'ADN (touche C)
 ```
 
 ---

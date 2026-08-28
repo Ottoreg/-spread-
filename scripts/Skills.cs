@@ -34,8 +34,8 @@ public class Skills
     public int NextCost(int b) => IsMaxed(b) ? 0 : BaseCost[b] * (Level[b] + 1);
 
     // --- Stats calculées ---
-    public float Damage => Config.ProjectileDamage + Level[Attaque] * 0.5f;
-    public float FireInterval => Config.FireInterval * Mathf.Pow(0.85f, Level[Infection]);
+    public float Damage => Config.MeleeDamage + Level[Attaque] * 0.5f;
+    public float AttackInterval => Config.AttackInterval * Mathf.Pow(0.85f, Level[Infection]);
     public float MaxHealth => Config.PlayerMaxHealth + Level[Protection] * 25f;
     public float RegenPerSec => Level[Regeneration] * 2.5f;
     public float MoveSpeed => Config.PlayerSpeed * (1f + Level[Fuite] * 0.12f);
@@ -43,8 +43,8 @@ public class Skills
     /// <summary>Description courte de l'effet actuel de la branche.</summary>
     public string Effect(int b) => b switch
     {
-        Attaque => $"Dégâts de tir : {Damage:0.#}",
-        Infection => $"Cadence : {1f / FireInterval:0.#}/s",
+        Attaque => $"Dégâts : {Damage:0.#}",
+        Infection => $"Cadence : {1f / AttackInterval:0.#}/s",
         Protection => $"PV max : {MaxHealth:0}",
         Regeneration => $"Régén : {RegenPerSec:0.#}/s",
         _ => $"Vitesse : {MoveSpeed:0}",

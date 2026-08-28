@@ -18,16 +18,17 @@ public partial class Game : Node2D
     private Simulation _sim;
     private SpatialHashGrid _grid;
     private FlowField _flow;
-    private Projectiles _proj;
     private Player _player;
     private readonly Skills _skills = new();
 
     private MapRenderer _mapRenderer;
     private EntityRenderer _entityRenderer;
-    private ProjectileRenderer _projRenderer;
     private Camera2D _camera;
     private DebugHud _hud;
     private SkillTreeHud _skillHud;
+
+    /// <summary>Graine de génération de la carte (fixée par le menu d'accueil).</summary>
+    public ulong Seed = Config.MapSeed;
 
     private int _tick;
     private float _time;
@@ -59,13 +60,12 @@ public partial class Game : Node2D
     public int EntityCount => _sim.Count;
     public int ActivatedCount => _sim.ActivatedCount;
     public int VisibleCount => _entityRenderer.VisibleCount;
-    public int ProjectileCount => _proj.Count;
     public float PlayerHealth => _player.Health;
     public float AlertPct => Alert / Config.AlertMax * 100f;
 
     public override void _Ready()
     {
-        _map = new OrganMap(Config.WorldWidth, Config.WorldHeight, Config.MapCellSize, Config.MapSeed);
+        _map = new OrganMap(Config.WorldWidth, Config.WorldHeight, Config.MapCellSize, Seed);
 
         _sim = new Simulation(Config.Capacity);
         _sim.SetMap(_map);
@@ -75,8 +75,6 @@ public partial class Game : Node2D
                                     Config.CellSize, Config.Capacity);
 
         _flow = new FlowField(_map);
-
-        _proj = new Projectiles(Config.ProjectileCapacity);
 
         _player = new Player { Position = _map.SpawnPoint, Map = _map, Skills = _skills };
         AddChild(_player);
@@ -93,10 +91,6 @@ public partial class Game : Node2D
         _entityRenderer = new EntityRenderer();
         AddChild(_entityRenderer);
         _entityRenderer.Init(Config.Capacity);
-
-        _projRenderer = new ProjectileRenderer();
-        AddChild(_projRenderer);
-        _projRenderer.Init(Config.ProjectileCapacity);
 
         var layer = new CanvasLayer();
         AddChild(layer);
@@ -126,7 +120,7 @@ public partial class Game : Node2D
         _tick++;
         _time += dt;
 
-        _player.Tick(dt, _proj);
+        _player.Tick(dt);
 
         // Piste : fraîche tant que le joueur bouge. S'il reste immobile trop
         // longtemps, les défenses activées perdent sa trace.
@@ -152,6 +146,11 @@ public partial class Game : Node2D
         _grid.Rebuild(_sim.Position, _sim.Count);
         MsGrid = Lap(sw);
 
+        // Combat de mêlée : résolu sur la grille fraîche quand un coup part.
+        AdnGain gain = default;
+        if (_player.AttackFired)
+            gain = MeleeSystem.Attack(_sim, _grid, _player.Position, _player.AimDir, _skills.Damage);
+
         CellSystem.Run(_sim, _grid, _flow, _player.Position, LodEnabled, active, _tick, _time, _trailFresh, Multithread);
         MsBehavior = Lap(sw);
 
@@ -162,7 +161,6 @@ public partial class Game : Node2D
         MsCollision = Lap(sw);
 
         _bursts.Clear();
-        AdnGain gain = ProjectileSystem.Run(_proj, _sim, _grid, _map, dt, _skills.Damage);
         gain.Add(ViroCellSystem.Run(_sim, dt, _bursts));
         _sim.CompactDead();
         ApplyGain(gain);
@@ -250,7 +248,6 @@ public partial class Game : Node2D
     {
         var sw = Stopwatch.StartNew();
         _entityRenderer.UpdateInstances(_sim, GetVisibleWorldRect());
-        _projRenderer.UpdateInstances(_proj);
         MsRender = sw.Elapsed.TotalMilliseconds;
 
         _hud.Refresh();

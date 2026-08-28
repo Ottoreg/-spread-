@@ -146,14 +146,14 @@ public partial class DebugHud : Control
         {
             _adminLabel.Text =
                 $"FPS: {Engine.GetFramesPerSecond()}    PV: {Game.PlayerHealth:0}    ALERTE: {Game.AlertPct:0}%    infections: {Game.TotalInfections}\n" +
-                $"Cellules: {Game.EntityCount}   Défenses actives: {Game.ActivatedCount}   Visibles: {Game.VisibleCount}   Projectiles: {Game.ProjectileCount}\n" +
+                $"Cellules: {Game.EntityCount}   Défenses actives: {Game.ActivatedCount}   Visibles: {Game.VisibleCount}\n" +
                 $"grid {Game.MsGrid:0.00}  ia {Game.MsBehavior:0.00}  integ {Game.MsIntegrate:0.00}  " +
-                $"coll {Game.MsCollision:0.00}  proj {Game.MsProjectiles:0.00}  rendu {Game.MsRender:0.00}  (ms)\n" +
+                $"coll {Game.MsCollision:0.00}  viro {Game.MsProjectiles:0.00}  rendu {Game.MsRender:0.00}  (ms)\n" +
                 $"LOD: {(Game.LodEnabled ? "ON" : "off")}    " +
                 $"Threads: {(Game.Multithread ? $"ON ({Game.ThreadCount})" : "off")}    " +
                 $"FPS cap: {(Game.FpsCapped ? "60" : "off")}\n" +
                 $"Triangle=défense  Hexagone=proie  Carré=neutre  Vert=infectée\n" +
-                $"ZQSD: bouger   Souris: viser   Clic gauche: tirer   Molette: zoom   R: reset   Échap: fermer";
+                $"ZQSD: bouger   Souris: viser   Clic gauche: coup de lame   C: compétences   Molette: zoom   R: reset   Échap: fermer";
             _slider.SetValueNoSignal(Game.EntityCount);
         }
     }

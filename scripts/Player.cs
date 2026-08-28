@@ -1,9 +1,9 @@
 using Godot;
 
 /// <summary>
-/// Le joueur : le virus. Contrôle twin-stick — déplacement clavier (WASD/flèches),
-/// visée à la souris, tir maintenu. Rendu fil-de-fer via _Draw (une seule entité,
-/// donc pas besoin d'instancing ici). Le virus infecte en tirant des projectiles.
+/// Le joueur : le virus. Contrôle twin-stick — déplacement ZQSD/flèches, visée à
+/// la souris. Attaque par défaut = coup de lame de MÊLÉE (clic gauche maintenu) :
+/// un arc horizontal devant le virus. Rendu fil-de-fer via _Draw (une entité).
 /// </summary>
 public partial class Player : Node2D
 {
@@ -13,19 +13,22 @@ public partial class Player : Node2D
     public OrganMap Map;
     public Skills Skills;
 
-    private float _fireCooldown;
+    public bool AttackFired { get; private set; } // vrai le tick où un coup part
+
+    private float _attackCooldown;
+    private float _slashTime;   // temps restant d'animation du coup
+    private float _swingSign = 1f;
 
     private float MoveSpeed => Skills?.MoveSpeed ?? Config.PlayerSpeed;
-    private float FireInterval => Skills?.FireInterval ?? Config.FireInterval;
+    private float AttackInterval => Skills?.AttackInterval ?? Config.AttackInterval;
     private float MaxHp => Skills?.MaxHealth ?? Config.PlayerMaxHealth;
 
     public override void _Ready()
     {
-        ZIndex = 10; // au-dessus des anticorps
+        ZIndex = 10; // au-dessus des cellules
     }
 
-    /// <summary>Met à jour déplacement, visée et tir. Retourne au pool les projectiles tirés.</summary>
-    public void Tick(float dt, Projectiles projectiles)
+    public void Tick(float dt)
     {
         // Déplacement ZQSD (AZERTY) + flèches
         Vector2 move = Vector2.Zero;
@@ -51,40 +54,45 @@ public partial class Player : Node2D
         if (regen > 0f && Health > 0f)
             Health = Mathf.Min(MaxHp, Health + regen * dt);
 
-        // Tir maintenu
-        _fireCooldown -= dt;
-        if (Input.IsMouseButtonPressed(MouseButton.Left) && _fireCooldown <= 0f)
+        // Attaque de mêlée (clic gauche maintenu)
+        AttackFired = false;
+        _attackCooldown -= dt;
+        if (Input.IsMouseButtonPressed(MouseButton.Left) && _attackCooldown <= 0f)
         {
-            _fireCooldown = FireInterval;
-            projectiles.Spawn(Position + AimDir * Config.PlayerRadius,
-                              AimDir * Config.ProjectileSpeed);
+            _attackCooldown = AttackInterval;
+            _slashTime = Config.SlashDuration;
+            _swingSign = -_swingSign;   // alterne le sens du coup
+            AttackFired = true;
         }
+        if (_slashTime > 0f) _slashTime -= dt;
 
-        QueueRedraw(); // met à jour l'orientation dessinée
+        QueueRedraw();
     }
 
-    public void TakeDamage(float amount)
-    {
-        Health = Mathf.Max(0f, Health - amount);
-    }
-
-    public void Heal()
-    {
-        Health = MaxHp;
-    }
-
+    public void TakeDamage(float amount) => Health = Mathf.Max(0f, Health - amount);
+    public void Heal() => Health = MaxHp;
     public bool IsDead => Health <= 0f;
 
     public override void _Draw()
     {
-        // Triangle fil-de-fer orienté vers la visée.
+        // Corps du virus : triangle fil-de-fer orienté vers la visée.
         float r = Config.PlayerRadius;
         float a = AimDir.Angle();
         Vector2 tip = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r * 1.4f;
         Vector2 left = new Vector2(Mathf.Cos(a + 2.5f), Mathf.Sin(a + 2.5f)) * r;
         Vector2 right = new Vector2(Mathf.Cos(a - 2.5f), Mathf.Sin(a - 2.5f)) * r;
+        DrawPolyline(new[] { tip, left, right, tip }, new Color(0.4f, 1f, 0.5f), 2f, true);
 
-        var pts = new Vector2[] { tip, left, right, tip };
-        DrawPolyline(pts, new Color(0.4f, 1f, 0.5f), 2f, true);
+        // Coup de lame : arc de coupe qui balaie devant le virus, en fondu.
+        if (_slashTime > 0f)
+        {
+            float p = _slashTime / Config.SlashDuration;   // 1 -> 0
+            float half = Mathf.DegToRad(Config.MeleeArcDegrees * 0.5f);
+            // Balayage : le tranchant part d'un bord vers l'autre selon la progression.
+            float sweep = Mathf.Lerp(half, -half, 1f - p) * _swingSign;
+            float mid = a + sweep;
+            var col = new Color(0.85f, 0.95f, 1f, p);
+            DrawArc(Vector2.Zero, Config.MeleeRange, mid - 0.35f, mid + 0.35f, 10, col, 3f, true);
+        }
     }
 }
