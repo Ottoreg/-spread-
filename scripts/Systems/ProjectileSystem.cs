@@ -12,7 +12,7 @@ using Godot;
 /// </summary>
 public static class ProjectileSystem
 {
-    public static AdnGain Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, OrganMap map, float dt)
+    public static AdnGain Run(Projectiles proj, Simulation sim, SpatialHashGrid grid, OrganMap map, float dt, float damage)
     {
         var pos = sim.Position;
         var dead = sim.Dead;
@@ -67,7 +67,7 @@ public static class ProjectileSystem
                         Vector2 d = pos[j] - p;
                         if (d.X * d.X + d.Y * d.Y > hitR2) continue;
 
-                        HitCell(sim, j, kind, hp, ref gain);
+                        HitCell(sim, j, kind, hp, damage, ref gain);
                         hit = true;
                         break;
                     }
@@ -81,7 +81,7 @@ public static class ProjectileSystem
         return gain;
     }
 
-    private static void HitCell(Simulation sim, int j, byte[] kind, float[] hp, ref AdnGain gain)
+    private static void HitCell(Simulation sim, int j, byte[] kind, float[] hp, float damage, ref AdnGain gain)
     {
         switch (kind[j])
         {
@@ -93,7 +93,7 @@ public static class ProjectileSystem
                 break;
 
             case CellKind.Defensive:
-                hp[j] -= Config.ProjectileDamage;
+                hp[j] -= damage;
                 if (hp[j] <= 0f)
                 {
                     sim.Infect(j);
@@ -104,7 +104,7 @@ public static class ProjectileSystem
                 break;
 
             default: // Neutral
-                hp[j] -= Config.ProjectileDamage;
+                hp[j] -= damage;
                 if (hp[j] <= 0f)
                 {
                     sim.Infect(j);

@@ -11,8 +11,13 @@ public partial class Player : Node2D
     public Vector2 Velocity { get; private set; }
     public Vector2 AimDir { get; private set; } = Vector2.Right;
     public OrganMap Map;
+    public Skills Skills;
 
     private float _fireCooldown;
+
+    private float MoveSpeed => Skills?.MoveSpeed ?? Config.PlayerSpeed;
+    private float FireInterval => Skills?.FireInterval ?? Config.FireInterval;
+    private float MaxHp => Skills?.MaxHealth ?? Config.PlayerMaxHealth;
 
     public override void _Ready()
     {
@@ -29,7 +34,7 @@ public partial class Player : Node2D
         if (Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) move.X -= 1;
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) move.X += 1;
 
-        Velocity = (move == Vector2.Zero ? Vector2.Zero : move.Normalized() * Config.PlayerSpeed);
+        Velocity = (move == Vector2.Zero ? Vector2.Zero : move.Normalized() * MoveSpeed);
         Position = Map != null
             ? Map.Slide(Position, Velocity * dt)
             : new Vector2(
@@ -41,11 +46,16 @@ public partial class Player : Node2D
         if (toMouse.LengthSquared() > 1f)
             AimDir = toMouse.Normalized();
 
+        // Régénération (compétence Régénération)
+        float regen = Skills?.RegenPerSec ?? 0f;
+        if (regen > 0f && Health > 0f)
+            Health = Mathf.Min(MaxHp, Health + regen * dt);
+
         // Tir maintenu
         _fireCooldown -= dt;
         if (Input.IsMouseButtonPressed(MouseButton.Left) && _fireCooldown <= 0f)
         {
-            _fireCooldown = Config.FireInterval;
+            _fireCooldown = FireInterval;
             projectiles.Spawn(Position + AimDir * Config.PlayerRadius,
                               AimDir * Config.ProjectileSpeed);
         }
@@ -60,7 +70,7 @@ public partial class Player : Node2D
 
     public void Heal()
     {
-        Health = Config.PlayerMaxHealth;
+        Health = MaxHp;
     }
 
     public bool IsDead => Health <= 0f;

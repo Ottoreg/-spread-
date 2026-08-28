@@ -206,6 +206,7 @@ scripts/
   SpatialHashGrid.cs     # grille de hachage spatiale
   FlowField.cs           # champ de direction vers le joueur, AWARE DES MURS (pathfinding de masse)
   Cells.cs               # types de cellules (CellKind) + struct AdnGain
+  Skills.cs              # arbre de compétences (5 branches GDD) + stats calculées
   Systems/
     CellSystem.cs        # comportement par type + activation (défense/proie/neutre)
     CollisionSystem.cs   # séparation entité-entité
@@ -217,7 +218,8 @@ scripts/
     EntityRenderer.cs    # anticorps : MultiMeshInstance2D wireframe
     ProjectileRenderer.cs# projectiles : MultiMeshInstance2D wireframe
   UI/
-    DebugHud.cs          # FPS, populations, ms, contrôles
+    DebugHud.cs          # HUD gameplay (alerte, ADN) + panneau admin (Échap)
+    SkillTreeHud.cs      # interface de l'arbre de compétences (touche C)
 ```
 
 ---

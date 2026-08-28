@@ -20,12 +20,14 @@ public partial class Game : Node2D
     private FlowField _flow;
     private Projectiles _proj;
     private Player _player;
+    private readonly Skills _skills = new();
 
     private MapRenderer _mapRenderer;
     private EntityRenderer _entityRenderer;
     private ProjectileRenderer _projRenderer;
     private Camera2D _camera;
     private DebugHud _hud;
+    private SkillTreeHud _skillHud;
 
     private int _tick;
     private float _time;
@@ -76,7 +78,7 @@ public partial class Game : Node2D
 
         _proj = new Projectiles(Config.ProjectileCapacity);
 
-        _player = new Player { Position = _map.SpawnPoint, Map = _map };
+        _player = new Player { Position = _map.SpawnPoint, Map = _map, Skills = _skills };
         AddChild(_player);
         _lastMovePos = _player.Position;
         _flow.SetTargetWorld(_player.Position, _sim);
@@ -100,6 +102,8 @@ public partial class Game : Node2D
         AddChild(layer);
         _hud = new DebugHud { Game = this };
         layer.AddChild(_hud);
+        _skillHud = new SkillTreeHud { Game = this };
+        layer.AddChild(_skillHud);
 
         // Fond = tissu de l'hôte (sombre). Les cavités des organes, plus claires,
         // se détachent comme des chambres creusées dans la chair.
@@ -115,6 +119,9 @@ public partial class Game : Node2D
 
     public override void _PhysicsProcess(double delta)
     {
+        // Simulation en pause quand l'arbre de compétences est ouvert.
+        if (_skillHud != null && _skillHud.IsOpen) return;
+
         float dt = (float)delta;
         _tick++;
         _time += dt;
@@ -155,7 +162,7 @@ public partial class Game : Node2D
         MsCollision = Lap(sw);
 
         _bursts.Clear();
-        AdnGain gain = ProjectileSystem.Run(_proj, _sim, _grid, _map, dt);
+        AdnGain gain = ProjectileSystem.Run(_proj, _sim, _grid, _map, dt, _skills.Damage);
         gain.Add(ViroCellSystem.Run(_sim, dt, _bursts));
         _sim.CompactDead();
         ApplyGain(gain);
@@ -247,6 +254,7 @@ public partial class Game : Node2D
         MsRender = sw.Elapsed.TotalMilliseconds;
 
         _hud.Refresh();
+        _skillHud.Refresh();
     }
 
     public override void _UnhandledInput(InputEvent e)
@@ -260,6 +268,7 @@ public partial class Game : Node2D
         {
             if (k.Keycode == Key.R) ResetPlayer();
             else if (k.Keycode == Key.Escape) _hud.ToggleAdmin();
+            else if (k.Keycode == Key.C) _skillHud.Toggle();
         }
     }
 
@@ -319,6 +328,7 @@ public partial class Game : Node2D
 
     private void ResetPlayer()
     {
+        _skills.Reset();
         _player.Position = _map.SpawnPoint;
         _player.Heal();
         Alert = 0f;
@@ -326,6 +336,33 @@ public partial class Game : Node2D
         TotalInfections = 0;
         _sim.SetCount(0);
         _sim.SetCount(Config.InitialEntityCount);
+    }
+
+    // --- API arbre de compétences ---
+    public Skills PlayerSkills => _skills;
+
+    public bool CanAfford(int branch)
+    {
+        if (_skills.IsMaxed(branch)) return false;
+        int cost = _skills.NextCost(branch);
+        int primary = _skills.IsOffensive(branch) ? AdnOffensive : AdnSurvival;
+        return primary + AdnReinforce >= cost; // le renforcement complète
+    }
+
+    public bool TryUpgradeSkill(int branch)
+    {
+        if (!CanAfford(branch)) return false;
+
+        int cost = _skills.NextCost(branch);
+        ref int primary = ref (_skills.IsOffensive(branch) ? ref AdnOffensive : ref AdnSurvival);
+
+        int fromPrimary = Mathf.Min(cost, primary);
+        int rem = cost - fromPrimary;      // complété par l'ADN de renforcement
+        primary -= fromPrimary;
+        AdnReinforce -= rem;
+
+        _skills.Level[branch]++;
+        return true;
     }
 
     // --- API HUD ---
