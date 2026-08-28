@@ -43,12 +43,23 @@ public static class CellSystem
             bool defensive = kind[i] == CellKind.Defensive;
             Vector2 pi = pos[i];
 
-            // Activation (défensives uniquement).
-            if (defensive && state[i] == Simulation.Dormant)
+            // Transitions d'état (défensives) :
+            //  - s'active si le joueur est proche ET laisse une piste fraîche
+            //    (immobile = pas de piste -> ne réveille pas les cellules) ;
+            //  - se désactive (perte de trace) dès que la piste devient froide :
+            //    elle se calme et se disperse (errance) au lieu d'orbiter en meute.
+            if (defensive)
             {
-                Vector2 dp = pi - playerPos;
-                if (dp.X * dp.X + dp.Y * dp.Y < actR2)
-                    state[i] = Simulation.Activated;
+                if (state[i] == Simulation.Dormant)
+                {
+                    Vector2 dp = pi - playerPos;
+                    if (trailFresh && dp.X * dp.X + dp.Y * dp.Y < actR2)
+                        state[i] = Simulation.Activated;
+                }
+                else if (state[i] == Simulation.Activated && !trailFresh)
+                {
+                    state[i] = Simulation.Dormant;
+                }
             }
             bool activated = defensive && state[i] == Simulation.Activated;
 
@@ -108,9 +119,9 @@ public static class CellSystem
                 }
             }
 
-            // Poursuite seulement si activée ET piste fraîche (le joueur a bougé
-            // récemment). Sinon la cellule "perd la trace" et cherche (errance).
-            if (activated && trailFresh)
+            // Une cellule activée poursuit (elle n'est activée que tant que la
+            // piste est fraîche) ; sinon elle erre (dormante = calme, dispersée).
+            if (activated)
             {
                 Vector2 fdir = flow.SampleDirection(pi);
                 if (fdir.LengthSquared() > 0.0001f)
